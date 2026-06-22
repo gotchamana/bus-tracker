@@ -1,27 +1,24 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Bus.Servant (waiApp) where
 
 import Bus.App (AppM (AppM), Env (envLoggingChan))
-import Bus.Logging (runTChanLoggingT, logDebug)
+import Bus.Logging (runTChanLoggingT)
+import Bus.Servant.Auth
+import Bus.Web.User.Api (UserApi, userApi)
 import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))
 import Servant
 
-type Api = "users" :> Get '[JSON] Int
+type Api = UserApi
 
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
 server :: ServerT Api AppM
-server = foo
-
-foo :: AppM Int
-foo = do
-    logDebug "foo"
-    pure 1
+server = userApi
 
 waiApp :: Env -> Application
-waiApp env = serve apiProxy (toHandler env server)
+waiApp env = serveWithContext apiProxy (authContext env) server'
+  where
+    server' = hoistServerWithContext apiProxy authContextProxy (toHandler env) server
 
 toHandler :: Env -> AppM a -> Handler a
 toHandler env (AppM readerT) = liftIO $ runTChanLoggingT (envLoggingChan env) (runReaderT readerT env)

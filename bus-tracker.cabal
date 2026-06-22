@@ -32,6 +32,8 @@ library bus-tracker-internal
     Bus.App
     Bus.Logging
     Bus.Servant
+    Bus.Servant.Auth
+    Bus.Web.User.Api
 
   default-extensions: StrictData
   build-depends:
@@ -52,6 +54,7 @@ library bus-tracker-internal
     , text                  >=2.1.3    && <2.2
     , time                  >=1.12.2   && <1.13
     , unordered-containers  >=0.2.21   && <0.3
+    , wai                   >=3.2.4    && <3.3
     , warp                  >=3.4.13   && <3.5
 
   hs-source-dirs:     lib
