@@ -2,12 +2,12 @@
 
 module Bus.Main (defaultMain) where
 
-import Bus.App (AppM (AppM), Config (..), Database (..), Env (Env, envConfig, envLoggingChan), Server (..))
-import Bus.Logging (logDebug, runTChanLoggingT, withAsyncLogging)
+import Bus.App (Config (..), Database (..), Env (Env, envConfig, envLoggingChan), Server (..))
+import Bus.Logging (withAsyncLogging)
+import Bus.Servant (waiApp)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
-import Control.Monad.Reader (ReaderT (runReaderT))
-import Data.Coerce (coerce)
+import Network.Wai.Handler.Warp (run)
 
 defaultMain :: IO ()
 defaultMain = do
@@ -35,8 +35,4 @@ defaultMain = do
                 }
 
     withAsyncLogging duplicatedChan $ \_ -> do
-        runTChanLoggingT chan (runReaderT (coerce app) env)
-
-app :: AppM ()
-app = do
-    logDebug "Hello World"
+        run 8080 (waiApp env)
