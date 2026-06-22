@@ -6,21 +6,32 @@
   outputs =
     { nixpkgs, ... }:
     let
-      system = "aarch64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      hpkgs = pkgs.haskell.packages.ghc9103;
+      supportedSystems = [
+        "aarch64-linux"
+        "x86_64-linux"
+      ];
+      eachSystem = f: nixpkgs.lib.genAttrs supportedSystems f;
     in
     {
-      devShells.${system}.default = hpkgs.shellFor {
-        packages = _: [ ];
-        nativeBuildInputs = with hpkgs; [
-          cabal-fmt
-          cabal-install
-          fourmolu
-          haskell-language-server
-          hlint
-        ];
-        buildInputs = with pkgs; [ zlib ];
-      };
+      devShells = eachSystem (
+        system:
+        let
+          pkgs = nixpkgs.legacyPackages.${system};
+          hpkgs = pkgs.haskell.packages.ghc9103;
+        in
+        {
+          default = hpkgs.shellFor {
+            packages = _: [ ];
+            nativeBuildInputs = with hpkgs; [
+              cabal-fmt
+              cabal-install
+              fourmolu
+              haskell-language-server
+              hlint
+            ];
+            buildInputs = with pkgs; [ zlib ];
+          };
+        }
+      );
     };
 }
