@@ -2,17 +2,18 @@
 
 module Bus.Main (defaultMain) where
 
-import Bus.App (AppM (AppM), Config (..), Database (..), Env (Env, envConfig), Server (..))
-import Bus.Logging (forkLoggingThread, logDebug, runTChanLoggingT, withAsyncLogging)
-import Control.Concurrent.Async (wait, withAsync)
-import Control.Concurrent.Chan (Chan, newChan)
-import Control.Monad.Logger.CallStack (LogLine, runChanLoggingT)
-import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT), MonadReader (ask))
+import Bus.App (AppM (AppM), Config (..), Database (..), Env (Env, envConfig, envLoggingChan), Server (..))
+import Bus.Logging (logDebug, runTChanLoggingT, withAsyncLogging)
+import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
+import Control.Monad.Reader (ReaderT (runReaderT))
 import Data.Coerce (coerce)
-import Control.Concurrent.STM.TChan (newBroadcastTChanIO, TChan)
 
 defaultMain :: IO ()
 defaultMain = do
+    chan <- newBroadcastTChanIO
+    duplicatedChan <- atomically (dupTChan chan)
+
     let server =
             Server
                 { svrPort = 8080
@@ -30,24 +31,12 @@ defaultMain = do
                         { cfgServer = server
                         , cfgDatabase = database
                         }
+                , envLoggingChan = chan
                 }
 
-    chan <- newBroadcastTChanIO
+    withAsyncLogging duplicatedChan $ \_ -> do
+        runTChanLoggingT chan (runReaderT (coerce app) env)
 
-    -- withAsyncLogging chan $ \async -> pure ()
-    runTChanLoggingT chan (runReaderT (coerce (app chan)) env)
-
-app :: TChan LogLine -> AppM ()
-app chan = do
-    env <- ask
-
-    logDebug "foooooooooo"
-
-    liftIO $ do
-        withAsync
-            (runTChanLoggingT chan (runReaderT (logDebug "barrrrrrrrrrrrrr" >> pure ()) env))
-            wait
-
-        withAsync
-            (runTChanLoggingT chan (runReaderT (logDebug "quxxxxxxxxxxx" >> pure ()) env))
-            wait
+app :: AppM ()
+app = do
+    logDebug "Hello World"

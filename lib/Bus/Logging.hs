@@ -2,25 +2,23 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bus.Logging (
-    forkLoggingThread,
     logDebug,
     logError,
     logInfo,
     logWarn,
-    withAsyncLogging,
     runTChanLoggingT,
+    withAsyncLogging,
 ) where
 
-import Control.Concurrent (ThreadId, forkFinally, myThreadId, threadDelay)
+import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
-import Control.Concurrent.Chan (Chan, readChan)
 import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Concurrent.STM.TChan (TChan, readTChan, tryReadTChan)
-import Control.Exception (Exception (displayException, fromException, toException), SomeAsyncException, SomeException , catch)
-import Control.Monad (forever, unless, void)
+import Control.Exception (Exception (displayException, fromException, toException), SomeAsyncException, SomeException, catch)
+import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Logger.CallStack (LogLevel (..), LogLine, LogStr, LoggingT (LoggingT), MonadLoggerIO (askLoggerIO), ToLogStr (toLogStr), defaultLoc, fromLogStr)
-import Data.Foldable (traverse_)
+import Data.Foldable (for_)
 import Data.List (isSuffixOf)
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
@@ -85,24 +83,23 @@ formatLogLevel = \case
     LevelOther text -> toLogStr text
 
 withAsyncLogging :: TChan LogLine -> (Async () -> IO ()) -> IO ()
-withAsyncLogging chan action = do
-    withAsync (logging `catch` handleException) action
+withAsyncLogging chan = withAsync (catch @SomeException logging handleException)
   where
     logging = forever $ do
         (_, _, _, msg) <- atomically (readTChan chan)
-        ByteString.putStr $ fromLogStr msg
-    handleException :: SomeException -> IO ()
+        putLogStr msg
     handleException e =
         if isAsyncException e
             then do
                 logs <- atomically $ unfoldrM (\_ -> fmap (,chan) <$> tryReadTChan chan) chan
-                traverse_ (\(_, _, _, msg) -> ByteString.putStr $ fromLogStr msg) logs
+                for_ logs $ \(_, _, _, msg) -> putLogStr msg
             else do
                 let msg = "Logging failed: " <> displayException e
 
                 if "\n" `isSuffixOf` msg
                     then putStr msg
                     else putStrLn msg
+    putLogStr = ByteString.putStr . fromLogStr
 
 unfoldrM :: (Monad m) => (b -> m (Maybe (a, b))) -> b -> m [a]
 unfoldrM f seed = do
@@ -111,22 +108,6 @@ unfoldrM f seed = do
     case m of
         Just (x, seed') -> (x :) <$> unfoldrM f seed'
         Nothing -> pure []
-
-forkLoggingThread :: Chan LogLine -> IO ()
-forkLoggingThread chan = do
-    void (forkFinally logging handleException)
-  where
-    logging = forever $ do
-        threadDelay 10000000
-        (_, _, _, msg) <- readChan chan
-        ByteString.putStr $ fromLogStr msg
-    handleException = \case
-        Left e ->
-            let msg = "Logging failed: " <> displayException e
-             in unless
-                    (isAsyncException e)
-                    (if "\n" `isSuffixOf` msg then putStr msg else putStrLn msg)
-        Right _ -> pure ()
 
 isAsyncException :: (Exception e) => e -> Bool
 isAsyncException e =
