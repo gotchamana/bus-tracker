@@ -8,14 +8,19 @@ module Bus.Logging (
     logInfo,
     logWarn,
     withAsyncLogging,
+    runTChanLoggingT,
 ) where
 
 import Control.Concurrent (ThreadId, forkFinally, myThreadId, threadDelay)
+import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.Chan (Chan, readChan)
-import Control.Exception (Exception (displayException, fromException, toException), SomeAsyncException, catch, SomeException (SomeException))
+import Control.Concurrent.STM (atomically, writeTChan)
+import Control.Concurrent.STM.TChan (TChan, readTChan, tryReadTChan)
+import Control.Exception (Exception (displayException, fromException, toException), SomeAsyncException, SomeException , catch)
 import Control.Monad (forever, unless, void)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Logger.CallStack (LogLevel (..), LogLine, LogStr, MonadLoggerIO (askLoggerIO), ToLogStr (toLogStr), defaultLoc, fromLogStr, LoggingT)
+import Control.Monad.Logger.CallStack (LogLevel (..), LogLine, LogStr, LoggingT (LoggingT), MonadLoggerIO (askLoggerIO), ToLogStr (toLogStr), defaultLoc, fromLogStr)
+import Data.Foldable (traverse_)
 import Data.List (isSuffixOf)
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
@@ -24,13 +29,9 @@ import System.Process (Pid, getCurrentPid)
 import Prelude hiding (log)
 
 import Data.ByteString qualified as ByteString
-import Control.Concurrent.Async (Async, withAsync)
-import Control.Concurrent.STM.TChan (TChan, readTChan, dupTChan, tryReadTChan)
-import Control.Concurrent.STM (atomically)
-import Data.Foldable (traverse_)
 
 runTChanLoggingT :: TChan LogLine -> LoggingT m a -> m a
-runTChanLoggingT chan logging = undefined
+runTChanLoggingT chan (LoggingT logging) = logging $ \loc source level msg -> atomically (writeTChan chan (loc, source, level, msg))
 
 logDebug :: (HasCallStack, MonadLoggerIO m, MonadIO m) => Text -> m ()
 logDebug = log callStack LevelDebug
