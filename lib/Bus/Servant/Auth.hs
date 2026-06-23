@@ -6,20 +6,20 @@ module Bus.Servant.Auth (authContextProxy, authHandler, authContext, JwtAuth) wh
 import Bus.App (AppM (AppM), Env (envLoggingChan))
 import Bus.Logging (runTChanLoggingT)
 import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))
+import Data.Text (Text)
 import Network.Wai (Request)
 import Servant
 import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
-import Data.Text (Text)
 
 type JwtAuth = AuthProtect "jwt"
 
 type instance AuthServerData JwtAuth = Text
 
+authContext :: Env -> Context (AuthHandler Request Text ': '[])
+authContext env = authHandler env :. EmptyContext
+
 authContextProxy :: Proxy '[AuthHandler Request Text]
 authContextProxy = Proxy
-
-toHandler :: Env -> AppM a -> Handler a
-toHandler env (AppM readerT) = liftIO $ runTChanLoggingT (envLoggingChan env) (runReaderT readerT env)
 
 authHandler :: Env -> AuthHandler Request Text
 authHandler env = mkAuthHandler f
@@ -27,5 +27,5 @@ authHandler env = mkAuthHandler f
     f request = toHandler env $ do
         pure "user foo"
 
-authContext :: Env -> Context (AuthHandler Request Text ': '[])
-authContext env = authHandler env :. EmptyContext
+toHandler :: Env -> AppM a -> Handler a
+toHandler env (AppM readerT) = liftIO $ runTChanLoggingT (envLoggingChan env) (runReaderT readerT env)
