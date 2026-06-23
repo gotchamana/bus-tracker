@@ -25,6 +25,7 @@
             nativeBuildInputs = with hpkgs; [
               cabal-fmt
               cabal-install
+              cabal-plan
               fourmolu
               haskell-language-server
               hlint
