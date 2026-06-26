@@ -8,6 +8,9 @@ import Bus.Logging (withAsyncLogging)
 import Bus.Servant (waiApp)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
+import Crypto.JOSE (fromX509PrivKey)
+import Crypto.JWT (JWTError)
+import Crypto.Store.PKCS8 (keyPairToPrivKey)
 import Network.Wai.Handler.Warp (run)
 
 defaultMain :: IO ()
@@ -16,7 +19,9 @@ defaultMain = do
 
     case ff of
         Left err -> print err
-        Right bags -> print (getKeyByFriendlyName "jwt" "secret" bags)
+        Right keyStore -> case getKeyByFriendlyName "jwt" "secret" keyStore of
+            Just keyPair -> print $ fromX509PrivKey @JWTError @(Either JWTError) (keyPairToPrivKey keyPair)
+            Nothing -> pure ()
 
     chan <- newBroadcastTChanIO
     duplicatedChan <- atomically (dupTChan chan)
