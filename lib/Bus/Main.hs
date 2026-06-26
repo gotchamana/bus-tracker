@@ -11,14 +11,16 @@ import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
 import Control.Monad (guard)
 import Control.Monad.Except (ExceptT (ExceptT), liftEither, runExceptT)
 import Crypto.Store.Error (StoreError)
-import Crypto.Store.PKCS12 (Attribute (..), Bag (Bag, bagAttributes, bagInfo), SafeBag, SafeContents (SafeContents), SafeInfo (SafeContentsBag, SecretBag), readP12File, recover, recoverAuthenticated, unPKCS12)
+import Crypto.Store.PKCS12 (Attribute (..), Bag (Bag, bagAttributes, bagInfo), SafeBag, SafeContents (SafeContents), SafeInfo (SafeContentsBag, SecretBag, KeyBag, PKCS8ShroudedKeyBag), getFriendlyName, readP12File, recover, recoverAuthenticated, unPKCS12, getSafeKeys)
 import Data.ASN1.Types (ASN1 (ASN1String, OctetString), asn1CharacterToString)
 import Data.ByteString (ByteString)
 import Data.Coerce (coerce)
 import Data.List (find)
 import Data.Maybe (listToMaybe, mapMaybe)
 import Network.Wai.Handler.Warp (run)
-import qualified Data.ByteString as BS
+
+import Data.ByteString qualified as BS
+import Data.Foldable (traverse_)
 
 getSecretKey :: String -> [SafeBag] -> Maybe ByteString
 getSecretKey alias = findJust f
@@ -51,12 +53,34 @@ readKeyStore path password = runExceptT $ do
         contents :: [[SafeBag]] <- coerce . recover passwd . unPKCS12 $ pkcs12
         pure (concat contents)
 
+findByFriendlyName :: String -> [SafeBag] -> Maybe SafeBag
+findByFriendlyName name = findJust f
+  where
+    f bag@Bag{..} =
+        case bagInfo of
+            SafeContentsBag (SafeContents bags) -> findByFriendlyName name bags
+            KeyBag _ -> do
+                name' <- getFriendlyName bagAttributes
+
+                if name == name'
+                    then Just bag
+                    else Nothing
+            PKCS8ShroudedKeyBag _ -> do
+                name' <- getFriendlyName bagAttributes
+
+                if name == name'
+                    then Just bag
+                    else Nothing
+            _ -> Nothing
+
 defaultMain :: IO ()
 defaultMain = do
     ff <- readKeyStore "server.pfx" "secret"
     case ff of
         Left err -> print err
-        Right bags -> print $ BS.length <$> getSecretKey "jwt" bags
+        Right bags -> print $ do
+            bag <- findByFriendlyName "jwt" bags
+            pure $ getSafeKeys (SafeContents [bag])
 
     chan <- newBroadcastTChanIO
     duplicatedChan <- atomically (dupTChan chan)
