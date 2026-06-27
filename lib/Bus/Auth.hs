@@ -11,10 +11,14 @@ module Bus.Auth (
     verifyToken,
 ) where
 
+import Bus.Exception (CryptoStoreException (CryptoStoreException))
 import Control.Applicative (Alternative (empty))
+import Control.Exception (Exception)
 import Control.Lens ((&), (.~), (?~))
 import Control.Monad (guard)
-import Control.Monad.Except (ExceptT (ExceptT), MonadError, liftEither, runExceptT)
+import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Except (MonadError)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Time (MonadTime (currentTime))
 import Crypto.JWT (
     ClaimsSet,
@@ -33,7 +37,6 @@ import Crypto.JWT (
     signJWT,
     verifyJWT,
  )
-import Crypto.Store.Error (StoreError)
 import Crypto.Store.PKCS12 (
     Bag (Bag, bagAttributes, bagInfo),
     SafeBag,
@@ -57,6 +60,7 @@ import Data.String (IsString (fromString))
 import Data.Text (Text, unpack)
 import Data.Time (addUTCTime)
 import Data.Typeable (Proxy (Proxy), typeRep)
+import GHC.Stack (HasCallStack)
 
 newtype KeyStore = KeyStore [SafeBag]
 
@@ -103,10 +107,11 @@ instance ToJSON TokenType where
         Access -> String "access"
         Refresh -> String "refresh"
 
-readKeyStore :: String -> ByteString -> IO (Either StoreError KeyStore)
-readKeyStore path password = runExceptT $ do
-    optAuthP12 <- ExceptT (readP12File path)
-    liftEither $ do
+readKeyStore :: (HasCallStack, MonadThrow m, MonadIO m) => String -> ByteString -> m KeyStore
+readKeyStore path password = do
+    optAuthP12 <- liftIO (readP12File path) >>= liftEitherEx CryptoStoreException
+
+    liftEitherEx CryptoStoreException $ do
         (passwd, pkcs12) <- recoverAuthenticated password optAuthP12
         contents :: [[SafeBag]] <- coerce . recover passwd . unPKCS12 $ pkcs12
         pure . KeyStore . concat $ contents
@@ -174,6 +179,11 @@ mkClaims subject expirationSec = do
             & claimIat ?~ NumericDate now
             & claimNbf ?~ NumericDate now
             & claimExp ?~ NumericDate expiration
+
+liftEitherEx :: (HasCallStack, Exception e', MonadThrow m) => (e -> e') -> Either e a -> m a
+liftEitherEx f = \case
+    Left e -> throwM (f e)
+    Right a -> pure a
 
 findJust :: (a -> Maybe b) -> [a] -> Maybe b
 findJust = (listToMaybe .) . mapMaybe

@@ -31,6 +31,7 @@ library bus-tracker-internal
   other-modules:
     Bus.App
     Bus.Auth
+    Bus.Exception
     Bus.Logging
     Bus.Servant
     Bus.Servant.Auth
@@ -53,6 +54,7 @@ library bus-tracker-internal
     , monad-logger          >=0.3.42   && <0.4
     , monad-time            >=0.4.0    && <0.5
     , mtl                   >=2.3.1    && <2.4
+    , optparse-applicative  >=0.19.0   && <0.20
     , process               >=1.6.26   && <1.7
     , resource-pool         >=0.5.0    && <0.6
     , servant-server        >=0.20.3   && <0.21
