@@ -44,7 +44,7 @@ import Crypto.Store.PKCS12 (
     SafeInfo (KeyBag, PKCS8ShroudedKeyBag, SafeContentsBag),
     getFriendlyName,
     getSafeKeys,
-    readP12File,
+    readP12FileFromMemory,
     recover,
     recoverAuthenticated,
     toProtectionPassword,
@@ -61,6 +61,8 @@ import Data.Text (Text, unpack)
 import Data.Time (addUTCTime)
 import Data.Typeable (Proxy (Proxy), typeRep)
 import GHC.Stack (HasCallStack)
+import System.File.OsPath (readFile')
+import System.OsPath (OsPath)
 
 newtype KeyStore = KeyStore [SafeBag]
 
@@ -107,11 +109,12 @@ instance ToJSON TokenType where
         Access -> String "access"
         Refresh -> String "refresh"
 
-readKeyStore :: (HasCallStack, MonadThrow m, MonadIO m) => String -> ByteString -> m KeyStore
+readKeyStore :: (HasCallStack, MonadThrow m, MonadIO m) => OsPath -> ByteString -> m KeyStore
 readKeyStore path password = do
-    optAuthP12 <- liftIO (readP12File path) >>= liftEitherEx CryptoStoreException
+    p12 <- liftIO (readFile' path)
 
     liftEitherEx CryptoStoreException $ do
+        optAuthP12 <- readP12FileFromMemory p12
         (passwd, pkcs12) <- recoverAuthenticated password optAuthP12
         contents :: [[SafeBag]] <- coerce . recover passwd . unPKCS12 $ pkcs12
         pure . KeyStore . concat $ contents

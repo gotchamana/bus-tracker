@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Bus.App (
     AppM (..),
     Env (..),
@@ -8,15 +10,23 @@ module Bus.App (
 ) where
 
 import Bus.Auth (KeyStore)
+import Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
+import Control.Exception (Exception (displayException))
 import Control.Monad.Logger.CallStack (LogLine, LoggingT, MonadLogger, MonadLoggerIO)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT)
-import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON)
+import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:))
 import Data.ByteString (ByteString)
 import Data.Char (toLower)
 import Data.List (stripPrefix)
-import Data.Text (Text)
+import Data.Text (Text, unpack)
+import Data.Typeable (Proxy (Proxy), typeRep)
 import GHC.Generics (Generic)
+import Rerefined.Predicate.Logical (And)
+import Rerefined.Refine (Refined, prettyRefineFailure, refine)
+import System.OsPath (OsPath, encodeUtf)
+
+import Data.Text qualified as Text
 
 newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
     deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadLogger, MonadLoggerIO)
@@ -57,14 +67,52 @@ instance FromJSON Database where
     parseJSON = genericParseJSON (customOptions "db")
 
 data Security = Security
-    { secKeyStoreFile :: Text
-    , secKeyStorePasswordFile :: Text
-    , secJwtKeyFriendlyName :: Text
+    { secKeyStoreFile :: Refined ValidPath OsPath
+    , secKeyStorePasswordFile :: Refined ValidPath OsPath
+    , secJwtKeyFriendlyName :: Refined (And Trimmed NotEmpty) Text
     }
-    deriving (Show, Generic)
+    deriving (Show)
 
 instance FromJSON Security where
-    parseJSON = genericParseJSON (customOptions "sec")
+    parseJSON = withObject name $ \o -> do
+        JsonOsPath storeFile <- o .: "keyStoreFile"
+        JsonOsPath passwordFile <- o .: "keyStorePasswordFile"
+        JsonTrimmedNonEmptyText friendlyName <- o .: "jwtKeyFriendlyName"
+
+        pure
+            Security
+                { secKeyStoreFile = storeFile
+                , secKeyStorePasswordFile = passwordFile
+                , secJwtKeyFriendlyName = friendlyName
+                }
+      where
+        name = show (typeRep @_ @Security Proxy)
+
+newtype JsonOsPath = JsonOsPath (Refined ValidPath OsPath)
+
+instance FromJSON JsonOsPath where
+    parseJSON = withText name $ \text -> do
+        case encodeUtf (Text.unpack text) of
+            Left err -> fail (displayException err)
+            Right path -> case refine path of
+                Left err -> fail . unpack . prettyRefineFailure $ err
+                Right r -> pure (JsonOsPath r)
+      where
+        name = show (typeRep @_ @OsPath Proxy)
+
+newtype JsonTrimmedNonEmptyText = JsonTrimmedNonEmptyText (Refined (And Trimmed NotEmpty) Text)
+
+instance FromJSON JsonTrimmedNonEmptyText where
+    parseJSON = withText name $ \text -> do
+        let trimmed = Text.strip text
+
+        text' <- case refine trimmed of
+            Left err -> fail . unpack . prettyRefineFailure $ err
+            Right t -> pure t
+
+        pure (JsonTrimmedNonEmptyText text')
+      where
+        name = show (typeRep @_ @Text Proxy)
 
 customOptions :: String -> Options
 customOptions fieldPrefix = defaultOptions{fieldLabelModifier = removePrefix}

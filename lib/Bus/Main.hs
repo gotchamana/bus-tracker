@@ -10,16 +10,14 @@ import Bus.Logging (withAsyncLogging)
 import Bus.Servant (waiApp)
 import Control.Concurrent.STM (atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
-import Control.Exception (Exception)
-import Control.Monad.Catch (MonadThrow (throwM), try)
+import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Aeson (AesonException (AesonException), eitherDecodeStrict)
 import Data.ByteString (ByteString)
-import Data.Text (unpack)
 import GHC.Stack (HasCallStack)
 import Network.Wai.Handler.Warp (run)
+import Rerefined.Refine (unrefine)
 import System.File.OsPath (readFile')
-import System.OsPath (OsPath, encodeUtf, osp)
-import System.OsPath.Encoding (EncodingException)
+import System.OsPath (OsPath, osp)
 
 import Data.ByteString.Char8 qualified as BC
 
@@ -52,15 +50,10 @@ loadConfig path = do
 
 loadKeyStore :: (HasCallStack) => Security -> IO (KeyStore, ByteString)
 loadKeyStore Security{secKeyStoreFile, secKeyStorePasswordFile} = do
-    passwordFilePath <- try (encodeUtf (unpack secKeyStorePasswordFile)) >>= liftEitherEx @EncodingException
-    password <- removeTrailingNewLine <$> readFile' passwordFilePath
+    password <- removeTrailingNewLine <$> readFile' (unrefine secKeyStorePasswordFile)
 
-    (,password) <$> readKeyStore (unpack secKeyStoreFile) password
+    (,password) <$> readKeyStore (unrefine secKeyStoreFile) password
   where
-    liftEitherEx :: (HasCallStack, Exception e, MonadThrow m) => Either e a -> m a
-    liftEitherEx = \case
-        Left e -> throwM e
-        Right a -> pure a
     removeTrailingNewLine bs =
         case BC.unsnoc bs of
             Just (bs', '\n') -> bs'
