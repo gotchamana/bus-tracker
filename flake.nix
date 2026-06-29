@@ -51,14 +51,24 @@
       packages = eachSystem (
         system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ overlay ];
-          };
+          # pkgs = import nixpkgs {
+          #   inherit system;
+          #   overlays = [ overlay ];
+          # };
+          pkgs = nixpkgs.legacyPackages.${system};
           hpkgs = pkgs.haskell.packages.ghc9124;
           hpkgs' = hpkgs.extend (
             self: super: {
-              haskell-language-server = self.callHackage "haskell-language-server" "2.14.0.0" { };
+              haskell-language-server = self.callHackageDirect {
+                pkg = "haskell-language-server";
+                ver = "2.14.0.0";
+                sha256 = "sha256-e7pa/QGSqyaxVowGE6DIDrMT/OYTsJL96w40rVgIz3Q=";
+              } { };
+              ghcide = self.callHackageDirect {
+                pkg = "ghcide";
+                ver = "2.14.0.0";
+                sha256 = "sha256-QBsLOV9YaaJFZO2NUQzmEv3FJ6KGJnGeRVWvMdvEyyA=";
+              } { };
             }
           );
         in
