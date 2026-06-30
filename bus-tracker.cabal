@@ -45,6 +45,7 @@ library bus-tracker-internal
     , base                  >=4.20.2.0 && <5
     , bytestring            >=0.12.2   && <0.13
     , containers            >=0.7      && <0.8
+    , cookie                >=0.5.1    && <0.6
     , crypton-asn1-types    >=0.4.1    && <0.5
     , cryptostore           >=0.5.0.0  && <0.6
     , exceptions            >=0.10.9   && <0.11
