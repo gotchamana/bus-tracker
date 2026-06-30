@@ -4,22 +4,25 @@
 
 module Bus.Main (defaultMain) where
 
-import Bus.App (Config (..), Env (..), Security (Security, secKeyStoreFile, secKeyStorePasswordFile))
+import Bus.App (Config (..), Env (..), Security (Security, secKeyStoreFile, secKeyStorePasswordFile), Server (svrPort))
 import Bus.Auth (KeyStore, readKeyStore)
-import Bus.Logging (withAsyncLogging)
+import Bus.Logging (logInfo, runTChanLoggingT, withAsyncLogging)
 import Bus.Servant (waiApp)
-import Control.Concurrent.STM (atomically)
+import Control.Concurrent.STM (TChan, atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
 import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Logger.CallStack (LogLine)
 import Data.Aeson (AesonException (AesonException), eitherDecodeStrict)
 import Data.ByteString (ByteString)
+import Data.Function ((&))
 import GHC.Stack (HasCallStack)
-import Network.Wai.Handler.Warp (run)
+import Network.Wai.Handler.Warp (Port, Settings, defaultSettings, getHost, runSettings, setBeforeMainLoop, setPort)
 import Rerefined.Refine (unrefine)
 import System.File.OsPath (readFile')
 import System.OsPath (OsPath, osp)
 
 import Data.ByteString.Char8 qualified as BC
+import Data.Text qualified as Text
 
 defaultMain :: IO ()
 defaultMain = do
@@ -38,7 +41,7 @@ defaultMain = do
                 }
 
     withAsyncLogging duplicatedChan $ \_ -> do
-        run 8080 (waiApp env)
+        runSettings (warpSettings chan (svrPort (cfgServer config))) (waiApp env)
 
 loadConfig :: (HasCallStack) => OsPath -> IO Config
 loadConfig path = do
@@ -58,3 +61,11 @@ loadKeyStore Security{secKeyStoreFile, secKeyStorePasswordFile} = do
         case BC.unsnoc bs of
             Just (bs', '\n') -> bs'
             _ -> bs
+
+warpSettings :: TChan LogLine -> Port -> Settings
+warpSettings chan port =
+    defaultSettings
+        & setPort port
+        & setBeforeMainLoop (runTChanLoggingT chan logStartup)
+  where
+    logStartup = logInfo ("Warp is running, host=" <> Text.pack (show (getHost defaultSettings)) <> ", port=" <> Text.pack (show port))
