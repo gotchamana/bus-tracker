@@ -36,6 +36,7 @@ library bus-tracker-internal
     Bus.Rerefined.Predicate
     Bus.Servant
     Bus.Servant.Auth
+    Bus.Util
     Bus.Web.User.Api
 
   default-extensions: StrictData
