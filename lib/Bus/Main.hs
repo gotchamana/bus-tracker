@@ -44,7 +44,7 @@ import Data.Text qualified as Text
 
 defaultMain :: IO ()
 defaultMain = do
-    config <- loadConfig [osp|config.json|]
+    config <- loadConfig [osp|data/config.json|]
     (keyStore, keyStorePassword) <- loadKeyStore (cfgSecurity config)
 
     chan <- newBroadcastTChanIO
