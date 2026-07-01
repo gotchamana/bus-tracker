@@ -2,10 +2,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bus.Logging (
+    logDebug',
     logDebug,
+    logDebugEx,
+    logError',
     logError,
+    logErrorEx,
+    logInfo',
     logInfo,
+    logInfoEx,
+    logWarn',
     logWarn,
+    logWarnEx,
     runTChanLoggingT,
     withAsyncLogging,
 ) where
@@ -14,7 +22,7 @@ import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Concurrent.STM.TChan (TChan, readTChan, tryReadTChan)
-import Control.Exception (Exception (displayException, fromException, toException), SomeAsyncException, SomeException, catch)
+import Control.Exception (Exception (displayException, fromException, toException), ExceptionWithContext, SomeAsyncException, SomeException, catch)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Logger.CallStack (LogLevel (..), LogLine, LogStr, LoggingT (LoggingT), MonadLoggerIO (askLoggerIO), ToLogStr (toLogStr), defaultLoc, fromLogStr)
@@ -27,6 +35,7 @@ import System.Process (Pid, getCurrentPid)
 import Prelude hiding (log)
 
 import Data.ByteString qualified as ByteString
+import Data.Text qualified as Text
 
 runTChanLoggingT :: TChan LogLine -> LoggingT m a -> m a
 runTChanLoggingT chan (LoggingT logging) = logging $ \loc source level msg -> atomically (writeTChan chan (loc, source, level, msg))
@@ -43,6 +52,30 @@ logWarn = log callStack LevelWarn
 logError :: (HasCallStack, MonadLoggerIO m, MonadIO m) => Text -> m ()
 logError = log callStack LevelError
 
+logDebug' :: (HasCallStack, MonadLoggerIO m, MonadIO m) => [Text] -> m ()
+logDebug' = log' callStack LevelDebug
+
+logInfo' :: (HasCallStack, MonadLoggerIO m, MonadIO m) => [Text] -> m ()
+logInfo' = log' callStack LevelInfo
+
+logWarn' :: (HasCallStack, MonadLoggerIO m, MonadIO m) => [Text] -> m ()
+logWarn' = log' callStack LevelWarn
+
+logError' :: (HasCallStack, MonadLoggerIO m, MonadIO m) => [Text] -> m ()
+logError' = log' callStack LevelError
+
+logDebugEx :: (HasCallStack, MonadLoggerIO m, MonadIO m, Exception e) => [Text] -> ExceptionWithContext e -> m ()
+logDebugEx = logEx callStack LevelDebug
+
+logInfoEx :: (HasCallStack, MonadLoggerIO m, MonadIO m, Exception e) => [Text] -> ExceptionWithContext e -> m ()
+logInfoEx = logEx callStack LevelInfo
+
+logWarnEx :: (HasCallStack, MonadLoggerIO m, MonadIO m, Exception e) => [Text] -> ExceptionWithContext e -> m ()
+logWarnEx = logEx callStack LevelWarn
+
+logErrorEx :: (HasCallStack, MonadLoggerIO m, MonadIO m, Exception e) => [Text] -> ExceptionWithContext e -> m ()
+logErrorEx = logEx callStack LevelError
+
 log :: (MonadLoggerIO m, MonadIO m) => CallStack -> LogLevel -> Text -> m ()
 log cs level msg = do
     logger <- askLoggerIO
@@ -53,9 +86,22 @@ log cs level msg = do
     let locModule = case getCallStack cs of
             [] -> ""
             (_, loc) : _ -> loc.srcLocModule
-        formattedMsg = formatLog currentTime pid threadId locModule level (toLogStr msg)
+        msg' = toLogStr (Text.stripEnd msg)
+        formattedMsg = formatLog currentTime pid threadId locModule level msg'
 
     liftIO (logger defaultLoc "" level formattedMsg)
+
+log' :: (MonadLoggerIO m, MonadIO m) => CallStack -> LogLevel -> [Text] -> m ()
+log' cs level = \case
+    [] -> pure ()
+    msgs -> log cs level (Text.concat msgs)
+
+logEx :: (MonadLoggerIO m, MonadIO m, Exception e) => CallStack -> LogLevel -> [Text] -> ExceptionWithContext e -> m ()
+logEx cs level msgs e =
+    let ex = Text.pack (displayException e)
+     in case msgs of
+            [] -> log' cs level [ex]
+            _ -> log' cs level (msgs <> ["\n", ex])
 
 formatLog :: UTCTime -> Pid -> ThreadId -> String -> LogLevel -> LogStr -> LogStr
 formatLog time pid threadId locModule level msg =
