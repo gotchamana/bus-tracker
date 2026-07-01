@@ -31,7 +31,11 @@
               hlint
               pkgs.watchexec
             ];
-            buildInputs = with pkgs; [ zlib ];
+            buildInputs = with pkgs; [
+              liquibase
+              postgresql_18
+              zlib
+            ];
           };
         }
       );
