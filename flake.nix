@@ -30,8 +30,10 @@
               haskell-language-server
               hlint
               pkgs.watchexec
+              pkgs.pkg-config
             ];
             buildInputs = with pkgs; [
+              libpq
               liquibase
               postgresql_18
               zlib

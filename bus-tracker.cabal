@@ -58,6 +58,7 @@ library bus-tracker-internal
     , monad-time            >=0.4.0    && <0.5
     , mtl                   >=2.3.1    && <2.4
     , optparse-applicative  >=0.19.0   && <0.20
+    , postgresql-simple     >=0.7.0    && <0.8
     , process               >=1.6.26   && <1.7
     , rerefined             >=0.8.0    && <0.9
     , resource-pool         >=0.5.0    && <0.6
