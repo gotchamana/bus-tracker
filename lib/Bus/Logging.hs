@@ -33,6 +33,7 @@ import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Typeable (cast)
 import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule), callStack, getCallStack)
+import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 import System.Process (Pid, getCurrentPid)
 import Prelude hiding (log)
 
@@ -139,9 +140,12 @@ formatLogLevel = \case
 withAsyncLogging :: TChan LogLine -> (Async () -> IO ()) -> IO ()
 withAsyncLogging chan = withAsync (catch @SomeException logging handleException)
   where
-    logging = forever $ do
-        (_, _, _, msg) <- atomically (readTChan chan)
-        putLogStr msg
+    logging = do
+        hSetBuffering stdout LineBuffering
+
+        forever $ do
+            (_, _, _, msg) <- atomically (readTChan chan)
+            putLogStr msg
     handleException e =
         if isAsyncException e
             then do
