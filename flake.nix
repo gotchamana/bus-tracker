@@ -29,6 +29,7 @@
               fourmolu
               haskell-language-server
               hlint
+              pkgs.watchexec
             ];
             buildInputs = with pkgs; [ zlib ];
           };
