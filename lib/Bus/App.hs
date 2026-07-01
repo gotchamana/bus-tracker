@@ -13,6 +13,7 @@ import Bus.Auth (KeyStore)
 import Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
 import Control.Exception (Exception (displayException))
+import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Logger.CallStack (LogLine, LoggingT, MonadLogger, MonadLoggerIO)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT)
 import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:))
@@ -29,7 +30,16 @@ import System.OsPath (OsPath, encodeUtf)
 import Data.Text qualified as Text
 
 newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
-    deriving (Functor, Applicative, Monad, MonadIO, MonadReader Env, MonadLogger, MonadLoggerIO)
+    deriving
+        ( Functor
+        , Applicative
+        , Monad
+        , MonadIO
+        , MonadReader Env
+        , MonadLogger
+        , MonadLoggerIO
+        , MonadThrow
+        )
 
 data Env = Env
     { envConfig :: Config
