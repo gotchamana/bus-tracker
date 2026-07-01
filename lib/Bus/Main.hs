@@ -16,14 +16,26 @@ import Data.Aeson (AesonException (AesonException), eitherDecodeStrict)
 import Data.ByteString (ByteString)
 import Data.Function ((&))
 import GHC.Stack (HasCallStack)
-import Network.Wai.Handler.Warp (Port, Settings, defaultSettings, getHost, runSettings, setBeforeMainLoop, setPort)
+import Network.Wai.Handler.Warp (
+    Port,
+    Settings,
+    defaultSettings,
+    getHost,
+    runSettings,
+    setBeforeMainLoop,
+    setGracefulShutdownTimeout,
+    setInstallShutdownHandler,
+    setOnException,
+    setPort,
+    setServerName,
+ )
 import Rerefined.Refine (unrefine)
 import System.File.OsPath (readFile')
 import System.OsPath (OsPath, osp)
+import TextShow (TextShow (showt))
 
 import Data.ByteString.Char8 qualified as BC
 import Data.Text qualified as Text
-import TextShow (TextShow(showt))
 
 defaultMain :: IO ()
 defaultMain = do
@@ -68,6 +80,10 @@ warpSettings chan port =
     defaultSettings
         & setPort port
         & setBeforeMainLoop (runTChanLoggingT chan logStartup)
+        & setServerName ""
+        -- & setOnException
+        -- & setInstallShutdownHandler
+        -- & setGracefulShutdownTimeout
   where
     logStartup =
         logInfo'
