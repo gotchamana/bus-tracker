@@ -18,6 +18,7 @@ module Bus.Logging (
     withAsyncLogging,
 ) where
 
+import Bus.Exception (isAsyncException)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, writeTChan)
@@ -154,9 +155,3 @@ unfoldrM f seed = do
     case m of
         Just (x, seed') -> (x :) <$> unfoldrM f seed'
         Nothing -> pure []
-
-isAsyncException :: (Exception e) => e -> Bool
-isAsyncException e =
-    case fromException @SomeAsyncException (toException e) of
-        Just _ -> True
-        Nothing -> False
