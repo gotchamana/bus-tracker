@@ -23,7 +23,7 @@ import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, writeTChan)
 import Control.Concurrent.STM.TChan (TChan, readTChan, tryReadTChan)
-import Control.Exception (Exception (displayException, fromException, toException), ExceptionWithContext, SomeAsyncException, SomeException, catch)
+import Control.Exception (Exception (displayException, fromException, toException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, catch)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Logger.CallStack (LogLevel (..), LogLine, LogStr, LoggingT (LoggingT), MonadLoggerIO (askLoggerIO), ToLogStr (toLogStr), defaultLoc, fromLogStr)
@@ -31,6 +31,7 @@ import Data.Foldable (for_)
 import Data.List (isSuffixOf)
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
+import Data.Typeable (cast)
 import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule), callStack, getCallStack)
 import System.Process (Pid, getCurrentPid)
 import Prelude hiding (log)
@@ -98,11 +99,17 @@ log' cs level = \case
     msgs -> log cs level (Text.concat msgs)
 
 logEx :: (MonadLoggerIO m, MonadIO m, Exception e) => CallStack -> LogLevel -> [Text] -> ExceptionWithContext e -> m ()
-logEx cs level msgs e =
-    let ex = Text.pack (displayException e)
-     in case msgs of
-            [] -> log' cs level [ex]
-            _ -> log' cs level (msgs <> ["\n", ex])
+logEx cs level msgs ewc@(ExceptionWithContext _ e) =
+    case msgs of
+        [] -> log' cs level [exMsg]
+        _ -> log' cs level (msgs <> ["\n", exMsg])
+  where
+    exMsg =
+        -- Prevent log backtrace twice
+        Text.pack $
+            if isSomeException e
+                then displayException e
+                else displayException ewc
 
 formatLog :: UTCTime -> Pid -> ThreadId -> String -> LogLevel -> LogStr -> LogStr
 formatLog time pid threadId locModule level msg =
@@ -155,3 +162,9 @@ unfoldrM f seed = do
     case m of
         Just (x, seed') -> (x :) <$> unfoldrM f seed'
         Nothing -> pure []
+
+isSomeException :: (Exception e) => e -> Bool
+isSomeException e =
+    case cast @_ @SomeException e of
+        Just _ -> True
+        Nothing -> False
