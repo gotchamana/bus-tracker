@@ -5,14 +5,14 @@
 
 module Bus.Main (defaultMain) where
 
-import Bus.App (Config (..), Env (..), Security (Security, secKeyStoreFile, secKeyStorePasswordFile), Server (svrPort))
+import Bus.App (Config (..), Database (..), Env (..), Security (..), Server (..))
 import Bus.Auth (KeyStore, readKeyStore)
 import Bus.Exception (isAsyncException)
 import Bus.Logging (logErrorEx, logInfo, logInfo', runTChanLoggingT, withAsyncLogging)
 import Bus.Servant (waiApp)
 import Control.Concurrent.STM (TChan, atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
-import Control.Exception (ExceptionWithContext (ExceptionWithContext), someExceptionContext)
+import Control.Exception (ExceptionWithContext (ExceptionWithContext), bracket, someExceptionContext)
 import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -20,6 +20,9 @@ import Control.Monad.Logger.CallStack (LogLine)
 import Data.Aeson (AesonException (AesonException), eitherDecodeStrict)
 import Data.ByteString (ByteString)
 import Data.Function ((&))
+import Data.Pool (Pool, defaultPoolConfig, destroyAllResources, newPool)
+import Data.Text (Text)
+import Database.PostgreSQL.Simple (ConnectInfo (..), Connection, close, connect)
 import GHC.Stack (HasCallStack)
 import Network.Wai.Handler.Warp (
     Port,
@@ -42,6 +45,7 @@ import TextShow (TextShow (showt))
 
 import Data.ByteString.Char8 qualified as BC
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 
 defaultMain :: IO ()
 defaultMain = do
@@ -51,16 +55,20 @@ defaultMain = do
     chan <- newBroadcastTChanIO
     duplicatedChan <- atomically (dupTChan chan)
 
-    let env =
-            Env
-                { envConfig = config
-                , envLoggingChan = chan
-                , envKeyStore = keyStore
-                , envKeyStorePassword = keyStorePassword
-                }
+    withAsyncLogging duplicatedChan $ \_ ->
+        withDatabasePool config.cfgDatabase $ \pool -> do
+            let env =
+                    Env
+                        { envConfig = config
+                        , envLoggingChan = chan
+                        , envKeyStore = keyStore
+                        , envKeyStorePassword = keyStorePassword
+                        , envDbPool = pool
+                        }
+                settings = warpSettings chan (unrefine config.cfgServer.svrPort)
+                app = waiApp env
 
-    withAsyncLogging duplicatedChan $ \_ -> do
-        runSettings (warpSettings chan (unrefine config.cfgServer.svrPort)) (waiApp env)
+            runSettings settings app
 
 loadConfig :: (HasCallStack) => OsPath -> IO Config
 loadConfig path = do
@@ -75,11 +83,26 @@ loadKeyStore Security{secKeyStoreFile, secKeyStorePasswordFile} = do
     password <- removeTrailingNewLine <$> readFile' (unrefine secKeyStorePasswordFile)
 
     (,password) <$> readKeyStore (unrefine secKeyStoreFile) password
+
+withDatabasePool :: (HasCallStack) => Database -> (Pool Connection -> IO a) -> IO a
+withDatabasePool Database{..} = bracket createDbPool destroyAllResources
   where
-    removeTrailingNewLine bs =
-        case BC.unsnoc bs of
-            Just (bs', '\n') -> bs'
-            _ -> bs
+    createDbPool = do
+        password <- case unrefine <$> dbPasswordFile of
+            Just path -> readFile' path >>= (byteStringToText . removeTrailingNewLine)
+            Nothing -> pure ""
+
+        let connectInfo =
+                ConnectInfo
+                    { connectUser = Text.unpack dbUser
+                    , connectPort = maybe 5432 (fromIntegral . unrefine) dbPort
+                    , connectPassword = Text.unpack password
+                    , connectHost = Text.unpack dbHost
+                    , connectDatabase = Text.unpack dbDbName
+                    }
+            poolConfig = defaultPoolConfig (connect connectInfo) close (3 * 60) 10
+
+        newPool poolConfig
 
 warpSettings :: TChan LogLine -> Port -> Settings
 warpSettings chan port =
@@ -106,3 +129,15 @@ warpSettings chan port =
          in do
                 void $ installHandler sigINT (CatchOnce action) Nothing
                 void $ installHandler sigTERM (CatchOnce action) Nothing
+
+removeTrailingNewLine :: ByteString -> ByteString
+removeTrailingNewLine bs =
+    case BC.unsnoc bs of
+        Just (bs', '\n') -> bs'
+        _ -> bs
+
+byteStringToText :: (HasCallStack, MonadThrow m) => ByteString -> m Text
+byteStringToText bs =
+    case Text.decodeUtf8' bs of
+        Left err -> throwM err
+        Right text -> pure text

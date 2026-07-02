@@ -16,12 +16,16 @@ import Control.Exception (Exception (displayException))
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Logger.CallStack (LogLine, LoggingT, MonadLogger, MonadLoggerIO)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT)
-import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:))
+import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:), (.:?))
+import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
 import Data.Char (toLower)
+import Data.Coerce (coerce)
 import Data.List (stripPrefix)
+import Data.Pool (Pool)
 import Data.Text (Text, unpack)
 import Data.Typeable (Proxy (Proxy), typeRep)
+import Database.PostgreSQL.Simple (Connection)
 import GHC.Generics (Generic)
 import Rerefined.Predicate.Logical (And)
 import Rerefined.Refine (Refined, prettyRefineFailure, refine)
@@ -46,6 +50,7 @@ data Env = Env
     , envLoggingChan :: TChan LogLine
     , envKeyStore :: KeyStore
     , envKeyStorePassword :: ByteString
+    , envDbPool :: Pool Connection
     }
 
 data Config = Config
@@ -72,14 +77,32 @@ instance FromJSON Server where
         name = show (typeRep @_ @Server Proxy)
 
 data Database = Database
-    { dbUrl :: Text
+    { dbHost :: Text
+    , dbPort :: Maybe (Refined NetworkPort Int)
+    , dbDbName :: Text
     , dbUser :: Text
-    , dbPasswordFile :: Text
+    , dbPasswordFile :: Maybe (Refined ValidPath OsPath)
     }
     deriving (Show, Generic)
 
 instance FromJSON Database where
-    parseJSON = genericParseJSON (customOptions "db")
+    parseJSON = withObject name $ \o -> do
+        host <- o .: "host"
+        port <- coerce @(Parser (Maybe JsonNetworkPort)) (o .:? "port")
+        dbName <- o .: "dbName"
+        user <- o .: "user"
+        passwordFile <- coerce @(Parser (Maybe JsonOsPath)) (o .:? "passwordFile")
+
+        pure
+            Database
+                { dbHost = host
+                , dbPort = port
+                , dbDbName = dbName
+                , dbUser = user
+                , dbPasswordFile = passwordFile
+                }
+      where
+        name = show (typeRep @_ @Database Proxy)
 
 data Security = Security
     { secKeyStoreFile :: Refined ValidPath OsPath
