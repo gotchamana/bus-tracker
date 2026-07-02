@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -59,7 +60,7 @@ defaultMain = do
                 }
 
     withAsyncLogging duplicatedChan $ \_ -> do
-        runSettings (warpSettings chan (svrPort (cfgServer config))) (waiApp env)
+        runSettings (warpSettings chan (unrefine config.cfgServer.svrPort)) (waiApp env)
 
 loadConfig :: (HasCallStack) => OsPath -> IO Config
 loadConfig path = do

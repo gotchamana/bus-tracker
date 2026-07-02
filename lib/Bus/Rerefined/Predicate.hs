@@ -2,12 +2,12 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath) where
+module Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath, NetworkPort) where
 
 import Data.Char (isSpace)
 import Data.String (IsString (fromString))
 import Data.Text (Text, pattern Empty, pattern (:<), pattern (:>))
-import Data.Text.Builder.Linear (fromText)
+import Data.Text.Builder.Linear (fromDec, fromText)
 import Rerefined.Predicate (Predicate (PredicateName), Refine (validate))
 import Rerefined.Predicate.Common (validateFail)
 import System.OsPath (OsPath, decodeUtf, isValid)
@@ -56,3 +56,14 @@ instance Refine ValidPath OsPath where
         path' = fromString $ case decodeUtf path of
             Just fp -> fp
             Nothing -> show path
+
+data NetworkPort
+
+instance Predicate NetworkPort where
+    type PredicateName d NetworkPort = "NetworkPort"
+
+instance Refine NetworkPort Int where
+    validate p num =
+        if num < 0 || num > 65535
+            then validateFail p ("Invalid port: " <> fromDec num) []
+            else Nothing

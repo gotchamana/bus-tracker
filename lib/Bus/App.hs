@@ -10,7 +10,7 @@ module Bus.App (
 ) where
 
 import Bus.Auth (KeyStore)
-import Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath)
+import Bus.Rerefined.Predicate (NetworkPort, NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
 import Control.Exception (Exception (displayException))
 import Control.Monad.Catch (MonadThrow)
@@ -59,12 +59,17 @@ instance FromJSON Config where
     parseJSON = genericParseJSON (customOptions "cfg")
 
 newtype Server = Server
-    { svrPort :: Int
+    { svrPort :: Refined NetworkPort Int
     }
     deriving (Show, Generic)
 
 instance FromJSON Server where
-    parseJSON = genericParseJSON (customOptions "svr")
+    parseJSON = withObject name $ \o -> do
+        JsonNetworkPort port <- o .: "port"
+
+        pure (Server{svrPort = port})
+      where
+        name = show (typeRep @_ @Server Proxy)
 
 data Database = Database
     { dbUrl :: Text
@@ -123,6 +128,18 @@ instance FromJSON JsonTrimmedNonEmptyText where
         pure (JsonTrimmedNonEmptyText text')
       where
         name = show (typeRep @_ @Text Proxy)
+
+newtype JsonNetworkPort = JsonNetworkPort (Refined NetworkPort Int)
+
+instance FromJSON JsonNetworkPort where
+    parseJSON val = do
+        num <- parseJSON val
+
+        port <- case refine num of
+            Left err -> fail . unpack . prettyRefineFailure $ err
+            Right p -> pure p
+
+        pure (JsonNetworkPort port)
 
 customOptions :: String -> Options
 customOptions fieldPrefix = defaultOptions{fieldLabelModifier = removePrefix}
