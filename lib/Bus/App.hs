@@ -10,19 +10,21 @@ module Bus.App (
 ) where
 
 import Bus.Auth (KeyStore)
+import Bus.Database (MonadDatabase (..))
+import Bus.Exception (rethrowIO)
 import Bus.Rerefined.Predicate (NetworkPort, NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
-import Control.Exception (Exception (displayException))
+import Control.Exception (Exception (displayException, toException), ExceptionWithContext (ExceptionWithContext), SomeException, try)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Logger.CallStack (LogLine, LoggingT, MonadLogger, MonadLoggerIO)
-import Control.Monad.Reader (MonadIO, MonadReader, ReaderT)
+import Control.Monad.Reader (MonadIO (liftIO), MonadReader, ReaderT, asks)
 import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:), (.:?))
 import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
 import Data.Char (toLower)
 import Data.Coerce (coerce)
 import Data.List (stripPrefix)
-import Data.Pool (Pool)
+import Data.Pool (Pool, withResource)
 import Data.Text (Text, unpack)
 import Data.Typeable (Proxy (Proxy), typeRep)
 import Database.PostgreSQL.Simple (Connection)
@@ -44,6 +46,15 @@ newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
         , MonadLoggerIO
         , MonadThrow
         )
+
+instance MonadDatabase AppM where
+    withConnection action = do
+        pool <- asks envDbPool
+        result <- liftIO (withResource pool (try . action))
+
+        case result of
+            Left (ExceptionWithContext ctx (e :: SomeException)) -> liftIO . rethrowIO . ExceptionWithContext ctx . toException $ e
+            Right a -> pure a
 
 data Env = Env
     { envConfig :: Config

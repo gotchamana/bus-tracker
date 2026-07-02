@@ -31,6 +31,7 @@ library bus-tracker-internal
   other-modules:
     Bus.App
     Bus.Auth
+    Bus.Database
     Bus.Exception
     Bus.Logging
     Bus.Rerefined.Predicate
