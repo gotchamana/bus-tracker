@@ -39,6 +39,7 @@ library bus-tracker-internal
     Bus.Servant.Auth
     Bus.Util
     Bus.Web.User.Api
+    Bus.Web.User.Entity
 
   default-extensions: StrictData
   build-depends:
@@ -71,6 +72,7 @@ library bus-tracker-internal
     , time                  >=1.12.2   && <1.13
     , unix                  >=2.8.7    && <2.9
     , unordered-containers  >=0.2.21   && <0.3
+    , uuid-types            >=1.0.6    && <1.1
     , wai                   >=3.2.4    && <3.3
     , warp                  >=3.4.13   && <3.5
 
