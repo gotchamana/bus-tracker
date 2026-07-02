@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext"
+    xmlns:secure="http://www.liquibase.org/xml/ns/secure"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd
+                        http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd
+                        http://www.liquibase.org/xml/ns/secure http://www.liquibase.org/xml/ns/secure/liquibase-secure-latest.xsd">
+
+    <changeSet id="202607021549" author="star">
+        <createTable tableName="user">
+            <column name="id" type="varchar(50)">
+                <constraints primaryKey="true" primaryKeyName="pk_user" />
+            </column>
+
+            <column name="account" type="varchar(50)">
+                <constraints nullable="false" unique="true" uniqueConstraintName="uq_user_account" />
+            </column>
+
+            <column name="password" type="varchar(100)">
+                <constraints nullable="false" />
+            </column>
+
+            <column name="create_time" type="timestamptz">
+                <constraints nullable="false" />
+            </column>
+
+            <column name="update_time" type="timestamptz">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+    </changeSet>
+</databaseChangeLog>
