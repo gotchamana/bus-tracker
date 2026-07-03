@@ -11,7 +11,7 @@
 
     <changeSet id="202607021549" author="star">
         <createTable tableName="user">
-            <column name="id" type="varchar(50)">
+            <column name="id" type="uuid">
                 <constraints primaryKey="true" primaryKeyName="pk_user" />
             </column>
 

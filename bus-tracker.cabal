@@ -32,6 +32,7 @@ library bus-tracker-internal
     Bus.App
     Bus.Auth
     Bus.Database
+    Bus.Database.Table.User
     Bus.Exception
     Bus.Logging
     Bus.Rerefined.Predicate
@@ -39,13 +40,14 @@ library bus-tracker-internal
     Bus.Servant.Auth
     Bus.Util
     Bus.Web.User.Api
-    Bus.Web.User.Entity
 
   default-extensions: StrictData
   build-depends:
     , aeson                 >=2.2.5    && <2.3
     , async                 >=2.2.6    && <2.3
     , base                  >=4.20.2.0 && <5
+    , beam-core             >=0.11.1   && <0.12
+    , beam-postgres         >=0.6.2    && <0.7
     , bytestring            >=0.12.2   && <0.13
     , containers            >=0.7      && <0.8
     , cookie                >=0.5.1    && <0.6
