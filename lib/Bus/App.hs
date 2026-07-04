@@ -12,12 +12,13 @@ module Bus.App (
 import Bus.Auth (KeyStore)
 import Bus.Database (MonadDatabase (..))
 import Bus.Exception (rethrowIO)
+import Bus.Logging (logDebug, runTChanLoggingT)
 import Bus.Rerefined.Predicate (NetworkPort, NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
-import Control.Exception (Exception (displayException, toException), ExceptionWithContext (ExceptionWithContext), SomeException, try)
+import Control.Exception (Exception (displayException, toException), ExceptionWithContext (ExceptionWithContext), SomeException, mask, try)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Logger.CallStack (LogLine, LoggingT, MonadLogger, MonadLoggerIO)
-import Control.Monad.Reader (MonadIO (liftIO), MonadReader, ReaderT, asks)
+import Control.Monad.Reader (MonadIO (liftIO), MonadReader (ask), ReaderT (runReaderT), asks)
 import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:), (.:?))
 import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
@@ -27,7 +28,9 @@ import Data.List (stripPrefix)
 import Data.Pool (Pool, withResource)
 import Data.Text (Text, unpack)
 import Data.Typeable (Proxy (Proxy), typeRep)
-import Database.PostgreSQL.Simple (Connection)
+import Database.Beam.Postgres (runBeamPostgresDebug)
+import Database.PostgreSQL.Simple (Connection, rollback)
+import Database.PostgreSQL.Simple.Transaction (TransactionMode, beginMode, commit)
 import GHC.Generics (Generic)
 import Rerefined.Predicate.Logical (And)
 import Rerefined.Refine (Refined, prettyRefineFailure, refine)
@@ -49,12 +52,37 @@ newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
 
 instance MonadDatabase AppM where
     withConnection action = do
-        pool <- asks envDbPool
-        result <- liftIO (withResource pool (try . action))
+        env <- ask
+        let action' = flip runApp env . action
+
+        result <- liftIO (withResource (envDbPool env) (try . action'))
 
         case result of
             Left (ExceptionWithContext ctx (e :: SomeException)) -> liftIO . rethrowIO . ExceptionWithContext ctx . toException $ e
             Right a -> pure a
+
+    withTransactionMode :: forall b. TransactionMode -> (Connection -> AppM b) -> AppM b
+    withTransactionMode mode action = do
+        env <- ask
+        withConnection $ \conn -> liftIO (mask (io conn env))
+      where
+        io :: Connection -> Env -> (forall a. IO a -> IO a) -> IO b
+        io conn env restore = do
+            let action' = flip runApp env . action
+
+            beginMode mode conn
+
+            result <- try (restore (action' conn))
+
+            case result of
+                Left (ExceptionWithContext ctx (e :: SomeException)) -> rollback conn >> rethrowIO (ExceptionWithContext ctx (toException e))
+                Right a -> a <$ commit conn
+
+    runBeam conn pg = do
+        chan <- asks envLoggingChan
+        liftIO (runBeamPostgresDebug (logging chan) conn pg)
+      where
+        logging chan = runTChanLoggingT chan . logDebug . Text.pack
 
 data Env = Env
     { envConfig :: Config
@@ -174,6 +202,9 @@ instance FromJSON JsonNetworkPort where
             Right p -> pure p
 
         pure (JsonNetworkPort port)
+
+runApp :: AppM a -> Env -> IO a
+runApp (AppM readerT) env@Env{envLoggingChan} = runTChanLoggingT envLoggingChan (runReaderT readerT env)
 
 customOptions :: String -> Options
 customOptions fieldPrefix = defaultOptions{fieldLabelModifier = removePrefix}
