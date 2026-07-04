@@ -32,4 +32,10 @@
             </column>
         </createTable>
     </changeSet>
+
+    <changeSet id="202607041100" author="star">
+        <modifyDataType tableName="user" columnName="create_time" newDataType="timestamp" />
+
+        <modifyDataType tableName="user" columnName="update_time" newDataType="timestamp" />
+    </changeSet>
 </databaseChangeLog>
