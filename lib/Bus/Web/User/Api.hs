@@ -2,24 +2,26 @@ module Bus.Web.User.Api (UserApi, userApi) where
 
 import Bus.App (AppM)
 import Bus.Database (BusTrackerDb (btUser), MonadDatabase (runBeam, withTransactionMode), busTrackerDb)
+import Bus.Logging (logDebug)
 import Bus.Web.User.Service (NewUser (usrAccount))
+import Data.Aeson (Value)
 import Data.UUID (UUID)
 import Database.Beam (MonadIO (liftIO), all_, runSelectReturningList, select)
 import Database.PostgreSQL.Simple.Transaction (defaultTransactionMode)
 import Servant
 
 import Bus.Web.User.Service qualified as UserSvc
-import Bus.Logging (logDebug)
 
-type UserApi = "users" :> (ReqBody '[JSON] NewUser :> Post '[JSON] UUID :<|> Get '[JSON] Int)
+type UserApi = "users" :> (ReqBody '[JSON] Value :> Post '[JSON] UUID :<|> Get '[JSON] Int)
 
 userApi :: ServerT UserApi AppM
 userApi = registerUser :<|> getUser
 
-registerUser :: NewUser -> AppM UUID
+registerUser :: Value -> AppM UUID
 registerUser user = do
-    logDebug (usrAccount user)
-    UserSvc.save user
+    -- logDebug (usrAccount user)
+    -- UserSvc.save user
+    pure undefined
 
 getUser :: AppM Int
 getUser = do
