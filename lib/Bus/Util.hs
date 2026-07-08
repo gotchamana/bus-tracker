@@ -25,6 +25,7 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Network.HTTP.Types (hContentType)
 import Data.Maybe (fromMaybe)
+import Network.URI (URIAuth(URIAuth), nullURIAuth)
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -66,11 +67,11 @@ toServerError ApiException{..} = do
 
     let uri =
             URI
-                { uriFragment = _uriFragment
-                , uriQuery = _uriQuery
+                { uriScheme = "http"
+                , uriAuthority = Just nullURIAuth{}
                 , uriPath = _uriPath
-                , uriAuthority = _uriAuthority
-                , uriScheme = _uriScheme
+                , uriQuery = _uriQuery
+                , uriFragment = _uriFragment
                 }
         pd =
             ProblemDetails
