@@ -36,11 +36,11 @@ newtype CryptoStoreException = CryptoStoreException StoreError deriving (Show)
 instance Exception CryptoStoreException where
     displayException e@(CryptoStoreException err) = show (typeOf e) <> ": " <> show err
 
-data ApiException = ApiException
+data ApiException = forall a. (ToJSON a) => ApiException
     { apiHttpStatus :: Status
     , apiErrorType :: ErrorType
     , apiErrorDescription :: Maybe Text
-    , apiErrorDetails :: forall a. (ToJSON a) => Maybe a
+    , apiErrorDetails :: Maybe a
     }
 
 instance Show ApiException where
