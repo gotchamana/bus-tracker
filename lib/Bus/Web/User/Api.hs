@@ -8,6 +8,7 @@ import Bus.Web.User.Service (NewUser (usrAccount))
 import Control.Monad.Catch (MonadThrow (throwM))
 import Data.Aeson (Value)
 import Data.UUID (UUID)
+import Data.Void (Void)
 import Database.Beam (MonadIO (liftIO), all_, runSelectReturningList, select)
 import Database.PostgreSQL.Simple.Transaction (defaultTransactionMode)
 import Network.HTTP.Types.Status (status400)
@@ -30,7 +31,7 @@ registerUser user = do
             { apiHttpStatus = status400
             , apiErrorType = etyInvalidRequestParameters
             , apiErrorDescription = Nothing
-            , apiErrorDetails = Nothing
+            , apiErrorDetails = Nothing :: Maybe Void
             }
 
 getUser :: AppM Int
