@@ -2,39 +2,37 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Bus.Web.User.Service (NewUser (..), save) where
+module Bus.Web.User.Service (NewUser (..), save, validateNewUser) where
 
 import Bus.Database (MonadDatabase)
 import Bus.Database.Table.User (UserT (..))
 import Bus.Rerefined.Predicate (NotEmpty, Trimmed)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Aeson (Options (fieldLabelModifier), Value, defaultOptions)
-import Data.Aeson.BetterErrors (Parse, key, withText)
-import Data.Char (toLower)
-import Data.List (stripPrefix)
+import Data.Aeson (Value)
+import Data.Aeson.BetterErrors (Parse, ParseError, key, parseValue, withText)
 import Data.Text (Text)
 import Data.Time (ZonedTime (zonedTimeToLocalTime), getZonedTime)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
-import GHC.Generics (Generic)
 import Rerefined (Refined, refine, unrefine)
 import Rerefined.Predicate (RefineFailure)
 import Rerefined.Predicates (And)
 
 import Bus.Database.Repository.User qualified as UserRepo
+import Data.Text qualified as Text
 
 data NewUser = NewUser
     { usrAccount :: Refined (And Trimmed NotEmpty) Text
     , usrPassword :: Refined NotEmpty Text
     }
-    deriving (Generic)
+    deriving (Show)
 
-validateNewUser :: Value -> Either () NewUser
-validateNewUser val = undefined
+validateNewUser :: Value -> Either (ParseError RefineFailure) NewUser
+validateNewUser = parseValue parser
   where
     parser :: Parse RefineFailure NewUser
     parser = do
-        usrAccount <- key "account" (withText refine)
+        usrAccount <- key "account" (withText (refine . Text.strip))
         usrPassword <- key "password" (withText refine)
 
         pure NewUser{..}
@@ -53,12 +51,3 @@ save user = do
             , usrUpdateTime = now
             }
     pure userId
-
-customOptions :: String -> Options
-customOptions fieldPrefix = defaultOptions{fieldLabelModifier = removePrefix}
-  where
-    removePrefix field = case stripPrefix fieldPrefix field of
-        Just result -> case result of
-            [] -> []
-            (x : xs) -> toLower x : xs
-        Nothing -> field
