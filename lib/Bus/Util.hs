@@ -4,7 +4,7 @@
 module Bus.Util (toHandler) where
 
 import Bus.App (AppM (AppM), Env (envLoggingChan))
-import Bus.Exception (ApiException (..), isAsyncException, etyMessage)
+import Bus.Exception (ApiException (..), etyMessage, isAsyncException)
 import Bus.Logging (logErrorEx, logWarnEx, runTChanLoggingT)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeException, try)
 import Control.Monad (when)
@@ -15,17 +15,17 @@ import Data.ByteString (ByteString)
 import Data.Char (toLower)
 import Data.Foldable (for_)
 import Data.List (stripPrefix)
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
+import Network.HTTP.Types (hContentType)
 import Network.HTTP.Types.Status (Status (statusCode, statusMessage))
+import Network.URI (URIAuth (URIAuth, uriPort, uriRegName), nullURIAuth)
 import Servant
 
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import Network.HTTP.Types (hContentType)
-import Data.Maybe (fromMaybe)
-import Network.URI (URIAuth(URIAuth), nullURIAuth)
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -68,10 +68,15 @@ toServerError ApiException{..} = do
     let uri =
             URI
                 { uriScheme = "http"
-                , uriAuthority = Just nullURIAuth{}
-                , uriPath = _uriPath
-                , uriQuery = _uriQuery
-                , uriFragment = _uriFragment
+                , uriAuthority =
+                    Just
+                        nullURIAuth
+                            { uriRegName = ""
+                            , uriPort = ""
+                            }
+                , uriPath = ""
+                , uriQuery = ""
+                , uriFragment = ""
                 }
         pd =
             ProblemDetails
