@@ -10,7 +10,7 @@ import Bus.Logging (logErrorEx, logWarnEx, runTChanLoggingT)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))
-import Data.Aeson (Options (fieldLabelModifier, omitNothingFields), ToJSON (toEncoding, toJSON), Value, defaultOptions, encode, genericToEncoding, genericToJSON)
+import Data.Aeson (Options (fieldLabelModifier), ToJSON (toEncoding, toJSON), Value, defaultOptions, encode, genericToEncoding, genericToJSON)
 import Data.ByteString (ByteString)
 import Data.Char (toLower)
 import Data.Foldable (for_)
@@ -119,7 +119,6 @@ customOptions :: String -> Options
 customOptions fieldPrefix =
     defaultOptions
         { fieldLabelModifier = removePrefix
-        , omitNothingFields = True
         }
   where
     removePrefix field = case stripPrefix fieldPrefix field of
