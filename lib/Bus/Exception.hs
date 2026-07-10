@@ -70,16 +70,16 @@ etyMessage :: ErrorType -> Text
 etyMessage (ErrorType _ _ msg) = msg
 
 etyInvalidCredentials :: ErrorType
-etyInvalidCredentials = ErrorType "invalid-credentials" "error.invalid-credentials" "Invalid credentials"
+etyInvalidCredentials = ErrorType "invalid-credentials" "error.api.invalid-credentials" "Invalid credentials"
 
 etyInvalidRequestParameters :: ErrorType
-etyInvalidRequestParameters = ErrorType "invalid-request-parameters" "error.invalid-request-parameters" "Invalid request parameters"
+etyInvalidRequestParameters = ErrorType "invalid-request-parameters" "error.api.invalid-request-parameters" "Invalid request parameters"
 
 etyInvalidRequestFormat :: ErrorType
-etyInvalidRequestFormat = ErrorType "invalid-request-format" "error.invalid-request-format" "Invalid request format"
+etyInvalidRequestFormat = ErrorType "invalid-request-format" "error.api.invalid-request-format" "Invalid request format"
 
 etyUnknownError :: ErrorType
-etyUnknownError = ErrorType "unknown-error" "error.unknown-error" "Unknown error"
+etyUnknownError = ErrorType "unknown-error" "error.api.unknown-error" "Unknown error"
 
 isAsyncException :: (Exception e) => e -> Bool
 isAsyncException e =
