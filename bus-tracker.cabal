@@ -40,7 +40,9 @@ library bus-tracker-internal
     Bus.Servant.Auth
     Bus.Util
     Bus.Util.MessageCode
-    Bus.Validation
+    Bus.Validation.Aeson
+    Bus.Validation.Error
+    Bus.Validation.Rerefined
     Bus.Web.User.Api
     Bus.Web.User.Service
 
