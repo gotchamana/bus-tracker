@@ -5,8 +5,7 @@ import Bus.Database (BusTrackerDb (btUser), MonadDatabase (runBeam, withTransact
 import Bus.Exception (ApiException (..), etyInvalidRequestParameters)
 import Bus.Logging (logDebug, logDebug')
 import Control.Monad.Catch (MonadThrow (throwM))
-import Data.Aeson (Value)
-import Data.Aeson.BetterErrors (displayError)
+import Data.Aeson (Object)
 import Data.UUID (UUID)
 import Data.Void (Void)
 import Database.Beam (MonadIO (liftIO), all_, runSelectReturningList, select)
@@ -15,17 +14,18 @@ import Network.HTTP.Types.Status (status400)
 import Servant
 
 import Bus.Web.User.Service qualified as UserSvc
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 
-type UserApi = "users" :> (ReqBody '[JSON] Value :> Post '[JSON] UUID :<|> Get '[JSON] Int)
+type UserApi = "users" :> (ReqBody '[JSON] Object :> Post '[JSON] UUID :<|> Get '[JSON] Int)
 
 userApi :: ServerT UserApi AppM
 userApi = registerUser :<|> getUser
 
-registerUser :: Value -> AppM UUID
+registerUser :: Object -> AppM UUID
 registerUser user = do
     case UserSvc.validateNewUser user of
-        Left err -> logDebug' (displayError (Text.pack . show) err)
+        Left err -> logDebug' (NonEmpty.toList $ Text.pack . show <$> err)
         Right u -> logDebug (Text.pack (show u))
 
     -- UserSvc.save user

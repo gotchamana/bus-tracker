@@ -9,6 +9,13 @@ module Bus.Util.MessageCode (
     errorValidationNotEmpty,
     errorValidationValidPath,
     errorValidationNetworkPort,
+    errorValidationUnknownError,
+    errorValidationValidJsonSyntax,
+    errorValidationRequiredJsonKey,
+    errorValidationRequiredJsonArrayItem,
+    errorValidationValidJsonType,
+    errorValidationValidJsonInteger,
+    errorValidationUnknownJsonError,
 ) where
 
 import Data.Text (Text)
@@ -36,3 +43,24 @@ errorValidationValidPath = "error.validation.valid-path"
 
 errorValidationNetworkPort :: Text
 errorValidationNetworkPort = "error.validation.network-port"
+
+errorValidationValidJsonSyntax :: Text
+errorValidationValidJsonSyntax = "error.validation.valid-json-syntax"
+
+errorValidationRequiredJsonKey :: Text
+errorValidationRequiredJsonKey = "error.validation.required-json-key"
+
+errorValidationRequiredJsonArrayItem :: Text
+errorValidationRequiredJsonArrayItem = "error.validation.required-json-array-item"
+
+errorValidationValidJsonType :: Text
+errorValidationValidJsonType = "error.validation.valid-json-type"
+
+errorValidationValidJsonInteger :: Text
+errorValidationValidJsonInteger = "error.validation.valid-json-integer"
+
+errorValidationUnknownJsonError :: Text
+errorValidationUnknownJsonError = "error.validation.unknown-json-error"
+
+errorValidationUnknownError :: Text
+errorValidationUnknownError = "error.validation.unknown-error"

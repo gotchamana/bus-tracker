@@ -2,19 +2,21 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath, NetworkPort, ValidationError (..)) where
+module Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath, NetworkPort, ValidationError (..), collectAsValidationErrors) where
 
-import Bus.Util.MessageCode (errorValidationNetworkPort, errorValidationNotEmpty, errorValidationTrimmed, errorValidationValidPath)
-import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), ToJSON (toEncoding, toJSON), defaultOptions, genericParseJSON, genericToEncoding, genericToJSON)
+import Bus.Util.MessageCode (errorValidationNetworkPort, errorValidationNotEmpty, errorValidationTrimmed, errorValidationUnknownError, errorValidationValidPath)
+import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), ToJSON (toEncoding, toJSON), decodeStrictText, defaultOptions, genericParseJSON, genericToEncoding, genericToJSON)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Char (isSpace, toLower)
 import Data.HashMap.Strict (HashMap)
 import Data.List (stripPrefix)
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Maybe (fromMaybe, maybeToList)
 import Data.String (IsString (fromString))
 import Data.Text (Text, pattern Empty, pattern (:<), pattern (:>))
-import Data.Text.Builder.Linear (fromText)
+import Data.Text.Builder.Linear (fromText, runBuilder)
 import GHC.Generics (Generic)
-import Rerefined.Predicate (Predicate (PredicateName), Refine (validate))
+import Rerefined.Predicate (Predicate (PredicateName), Refine (validate), RefineFailure (RefineFailure, refineFailureDetail, refineFailureInner))
 import Rerefined.Predicate.Common (validateFail)
 import System.OsPath (OsPath, decodeUtf, isValid)
 import TextShow (TextShow (showt))
@@ -115,6 +117,24 @@ defaultValidationError msg code =
         , valMessageCode = code
         , valMessageArgs = Map.empty
         }
+
+collectAsValidationErrors :: Maybe Text -> RefineFailure -> NonEmpty ValidationError
+collectAsValidationErrors field RefineFailure{refineFailureDetail, refineFailureInner} =
+    case refineFailureInner of
+        [] -> (setField . toValidationError . runBuilder $ refineFailureDetail) :| []
+        (x : xs) -> (x :| xs) >>= collectAsValidationErrors field
+  where
+    toValidationError text =
+        fromMaybe
+            ( ValidationError
+                { valField = Nothing
+                , valMessage = text
+                , valMessageCode = errorValidationUnknownError
+                , valMessageArgs = Map.empty
+                }
+            )
+            (decodeStrictText text)
+    setField v = v{valField = field}
 
 customOptions :: String -> Options
 customOptions fieldPrefix =
