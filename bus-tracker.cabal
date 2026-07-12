@@ -36,11 +36,11 @@ library bus-tracker-internal
     Bus.Database.Table.User
     Bus.Exception
     Bus.Logging
-    Bus.Rerefined.Predicate
     Bus.Servant
     Bus.Servant.Auth
     Bus.Util
     Bus.Util.MessageCode
+    Bus.Validation
     Bus.Web.User.Api
     Bus.Web.User.Service
 

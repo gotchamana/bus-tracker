@@ -5,8 +5,8 @@ module Bus.Web.User.Service (NewUser (..), save, validateNewUser) where
 
 import Bus.Database (MonadDatabase)
 import Bus.Database.Table.User (UserT (..))
-import Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidationError (..), collectAsValidationErrors)
 import Bus.Util.MessageCode (errorValidationRequiredJsonArrayItem, errorValidationRequiredJsonKey, errorValidationUnknownJsonError, errorValidationValidJsonInteger, errorValidationValidJsonSyntax, errorValidationValidJsonType)
+import Bus.Validation (NotEmpty, Trimmed, ValidationError (..), collectAsValidationErrors)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Data.Aeson (Object, Value (Object))
 import Data.Aeson.BetterErrors (ErrorSpecifics (..), JSONType (..), Parse, ParseError (..), asText, key, parseValue, throwCustomError)

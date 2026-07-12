@@ -2,7 +2,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath, NetworkPort, ValidationError (..), collectAsValidationErrors) where
+module Bus.Validation (NotEmpty, Trimmed, ValidPath, NetworkPort, ValidationError (..), collectAsValidationErrors) where
 
 import Bus.Util.MessageCode (errorValidationNetworkPort, errorValidationNotEmpty, errorValidationTrimmed, errorValidationUnknownError, errorValidationValidPath)
 import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), ToJSON (toEncoding, toJSON), decodeStrictText, defaultOptions, genericParseJSON, genericToEncoding, genericToJSON)
@@ -11,7 +11,7 @@ import Data.Char (isSpace, toLower)
 import Data.HashMap.Strict (HashMap)
 import Data.List (stripPrefix)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Maybe (fromMaybe, maybeToList)
+import Data.Maybe (fromMaybe)
 import Data.String (IsString (fromString))
 import Data.Text (Text, pattern Empty, pattern (:<), pattern (:>))
 import Data.Text.Builder.Linear (fromText, runBuilder)
