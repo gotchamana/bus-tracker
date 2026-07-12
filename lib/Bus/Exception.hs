@@ -16,6 +16,7 @@ module Bus.Exception (
     rethrowIO,
 ) where
 
+import Bus.Util.MessageCode (errorApiInvalidCredentials, errorApiInvalidRequestFormat, errorApiInvalidRequestParameters, errorApiUnknownError)
 import Control.Exception (Exception (..), ExceptionWithContext, SomeAsyncException, throwIO)
 import Crypto.Store.Error (StoreError)
 import Data.Aeson (ToJSON)
@@ -70,16 +71,16 @@ etyMessage :: ErrorType -> Text
 etyMessage (ErrorType _ _ msg) = msg
 
 etyInvalidCredentials :: ErrorType
-etyInvalidCredentials = ErrorType "invalid-credentials" "error.api.invalid-credentials" "Invalid credentials"
+etyInvalidCredentials = ErrorType "invalid-credentials" errorApiInvalidCredentials "Invalid credentials"
 
 etyInvalidRequestParameters :: ErrorType
-etyInvalidRequestParameters = ErrorType "invalid-request-parameters" "error.api.invalid-request-parameters" "Invalid request parameters"
+etyInvalidRequestParameters = ErrorType "invalid-request-parameters" errorApiInvalidRequestParameters "Invalid request parameters"
 
 etyInvalidRequestFormat :: ErrorType
-etyInvalidRequestFormat = ErrorType "invalid-request-format" "error.api.invalid-request-format" "Invalid request format"
+etyInvalidRequestFormat = ErrorType "invalid-request-format" errorApiInvalidRequestFormat "Invalid request format"
 
 etyUnknownError :: ErrorType
-etyUnknownError = ErrorType "unknown-error" "error.api.unknown-error" "Unknown error"
+etyUnknownError = ErrorType "unknown-error" errorApiUnknownError "Unknown error"
 
 isAsyncException :: (Exception e) => e -> Bool
 isAsyncException e =

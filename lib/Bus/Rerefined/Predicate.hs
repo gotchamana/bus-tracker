@@ -4,6 +4,7 @@
 
 module Bus.Rerefined.Predicate (NotEmpty, Trimmed, ValidPath, NetworkPort, ValidationError (..)) where
 
+import Bus.Util.MessageCode (errorValidationNetworkPort, errorValidationNotEmpty, errorValidationTrimmed, errorValidationValidPath)
 import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), ToJSON (toEncoding, toJSON), defaultOptions, genericParseJSON, genericToEncoding, genericToJSON)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Char (isSpace, toLower)
@@ -56,7 +57,7 @@ instance Refine Trimmed Text where
       where
         valErr =
             fromText . LazyText.toStrict . encodeToLazyText $
-                defaultValidationError "String is not trimmed" "error.validation.trimmed"
+                defaultValidationError "String is not trimmed" errorValidationTrimmed
         err = validateFail p valErr []
 
 data NotEmpty
@@ -71,7 +72,7 @@ instance Refine NotEmpty Text where
       where
         valErr =
             fromText . LazyText.toStrict . encodeToLazyText $
-                defaultValidationError "Empty string" "error.validation.not-empty"
+                defaultValidationError "Empty string" errorValidationNotEmpty
 
 data ValidPath
 
@@ -89,7 +90,7 @@ instance Refine ValidPath OsPath where
             Nothing -> show path
         valErr =
             fromText . LazyText.toStrict . encodeToLazyText $
-                defaultValidationError ("Invalid file system path: " <> path') "error.validation.valid-path"
+                defaultValidationError ("Invalid file system path: " <> path') errorValidationValidPath
 
 data NetworkPort
 
@@ -104,7 +105,7 @@ instance Refine NetworkPort Int where
       where
         valErr =
             fromText . LazyText.toStrict . encodeToLazyText $
-                defaultValidationError ("Invalid network port: " <> showt num) "error.validation.network-port"
+                defaultValidationError ("Invalid network port: " <> showt num) errorValidationNetworkPort
 
 defaultValidationError :: Text -> Text -> ValidationError
 defaultValidationError msg code =

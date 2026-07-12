@@ -40,6 +40,7 @@ library bus-tracker-internal
     Bus.Servant
     Bus.Servant.Auth
     Bus.Util
+    Bus.Util.MessageCode
     Bus.Web.User.Api
     Bus.Web.User.Service
 
