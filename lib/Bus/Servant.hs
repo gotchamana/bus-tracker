@@ -15,6 +15,6 @@ server :: ServerT Api AppM
 server = userApi
 
 waiApp :: Env -> Application
-waiApp env = serveWithContext apiProxy (authContext env) server'
+waiApp env = serveWithContext apiProxy (authHandler env :. EmptyContext) server'
   where
     server' = hoistServerWithContext apiProxy authContextProxy (toHandler env) server

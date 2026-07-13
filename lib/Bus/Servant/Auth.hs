@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Bus.Servant.Auth (authContextProxy, authHandler, authContext, JwtAuth) where
+module Bus.Servant.Auth (authContextProxy, authHandler, JwtAuth) where
 
 import Bus.App (Env)
 import Bus.Util (toHandler)
@@ -13,9 +13,6 @@ import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHand
 type JwtAuth = AuthProtect "jwt"
 
 type instance AuthServerData JwtAuth = Text
-
-authContext :: Env -> Context (AuthHandler Request Text ': '[])
-authContext env = authHandler env :. EmptyContext
 
 authContextProxy :: Proxy '[AuthHandler Request Text]
 authContextProxy = Proxy
