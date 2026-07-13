@@ -1,9 +1,21 @@
-module Bus.Database.Repository.User (save) where
+module Bus.Database.Repository.User (save, existsByAccount) where
 
 import Bus.Database (BusTrackerDb (btUser), MonadDatabase (runBeam, withTransactionMode), busTrackerDb)
-import Bus.Database.Table.User (User)
-import Database.Beam (insert, insertValues, runInsert)
+import Bus.Database.Table.User (User, UserT (usrAccount))
+import Data.Int (Int32)
+import Data.Text (Text)
+import Database.Beam (SqlValable (val_), aggregate_, all_, as_, countAll_, guard_, insert, insertValues, runInsert, runSelectReturningOne, select, (==.))
 import Database.PostgreSQL.Simple.Transaction (defaultTransactionMode)
+
+existsByAccount :: (MonadDatabase m, MonadFail m) => Text -> m Bool
+existsByAccount account = withTransactionMode defaultTransactionMode $ \conn -> do
+    Just count <- runBeam conn $ runSelectReturningOne $ select $ do
+        aggregate_ (\_ -> as_ @Int32 countAll_) $ do
+            user <- all_ (btUser busTrackerDb)
+            guard_ (usrAccount user ==. val_ account)
+            pure user
+
+    pure (count == 1)
 
 save :: (MonadDatabase m) => User -> m ()
 save user = withTransactionMode defaultTransactionMode $ \conn -> do

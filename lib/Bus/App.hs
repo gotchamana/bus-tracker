@@ -48,6 +48,7 @@ newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
         , MonadLogger
         , MonadLoggerIO
         , MonadThrow
+        , MonadFail
         )
 
 instance MonadDatabase AppM where

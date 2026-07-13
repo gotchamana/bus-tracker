@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Validation.Aeson (parseObject) where
+module Bus.Validation.Aeson (parseObject, parseObjectM) where
 
 import Bus.Util.MessageCode (
     errorValidationRequiredJsonArrayItem,
@@ -12,7 +12,7 @@ import Bus.Util.MessageCode (
  )
 import Bus.Validation.Error (ValidationError (..))
 import Data.Aeson (Object, Value (Object))
-import Data.Aeson.BetterErrors (ErrorSpecifics (..), JSONType (..), Parse, ParseError (..), PathPiece (..), parseValue)
+import Data.Aeson.BetterErrors (ErrorSpecifics (..), JSONType (..), Parse, ParseError (..), ParseT, PathPiece (..), parseValue, parseValueM)
 import Data.Aeson.Text (encodeToLazyText)
 import Data.Bifunctor (Bifunctor (first))
 import Data.List.NonEmpty (NonEmpty ((:|)))
@@ -26,6 +26,9 @@ import Data.Text qualified as Text
 
 parseObject :: Parse (NonEmpty ValidationError) a -> Object -> Either (NonEmpty ValidationError) a
 parseObject parser object = first toValidationErrors (parseValue parser (Object object))
+
+parseObjectM :: (Monad m) => ParseT (NonEmpty ValidationError) m a -> Object -> m (Either (NonEmpty ValidationError) a)
+parseObjectM parser object = first toValidationErrors <$> (parseValueM parser (Object object))
 
 toValidationErrors :: ParseError (NonEmpty ValidationError) -> NonEmpty ValidationError
 toValidationErrors = \case
