@@ -4,6 +4,7 @@ module Bus.Util.MessageCode (
     errorApiInvalidCredentials,
     errorApiInvalidRequestParameters,
     errorApiInvalidRequestFormat,
+    errorApiMissingResource,
     errorApiUnknownError,
     errorValidationTrimmed,
     errorValidationNotEmpty,
@@ -28,6 +29,9 @@ errorApiInvalidRequestParameters = "error.api.invalid-request-parameters"
 
 errorApiInvalidRequestFormat :: Text
 errorApiInvalidRequestFormat = "error.api.invalid-request-format"
+
+errorApiMissingResource :: Text
+errorApiMissingResource = "error.api.missing-resource"
 
 errorApiUnknownError :: Text
 errorApiUnknownError = "error.api.unknown-error"

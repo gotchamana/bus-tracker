@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 
 module Bus.Exception (
     ApiException (..),
@@ -14,9 +13,10 @@ module Bus.Exception (
     etyUnknownError,
     isAsyncException,
     rethrowIO,
+    etyMissingResource,
 ) where
 
-import Bus.Util.MessageCode (errorApiInvalidCredentials, errorApiInvalidRequestFormat, errorApiInvalidRequestParameters, errorApiUnknownError)
+import Bus.Util.MessageCode (errorApiInvalidCredentials, errorApiInvalidRequestFormat, errorApiInvalidRequestParameters, errorApiMissingResource, errorApiUnknownError)
 import Control.Exception (Exception (..), ExceptionWithContext, SomeAsyncException, throwIO)
 import Crypto.Store.Error (StoreError)
 import Data.Aeson (Object)
@@ -66,6 +66,9 @@ etyInvalidRequestParameters = ErrorType "invalid-request-parameters" errorApiInv
 
 etyInvalidRequestFormat :: ErrorType
 etyInvalidRequestFormat = ErrorType "invalid-request-format" errorApiInvalidRequestFormat "Invalid request format"
+
+etyMissingResource :: ErrorType
+etyMissingResource = ErrorType "missing-resource" errorApiMissingResource "Missing resource"
 
 etyUnknownError :: ErrorType
 etyUnknownError = ErrorType "unknown-error" errorApiUnknownError "Unknown error"

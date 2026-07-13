@@ -2,10 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Bus.Util (toHandler) where
+module Bus.Util (toHandler, badRequestErrorFormatter, missingResourceErrorFormatter) where
 
 import Bus.App (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
-import Bus.Exception (ApiException (..), ErrorType, etyMessage, etyMessageCode, etyType, etyUnknownError)
+import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
 import Bus.Logging (logErrorEx, logWarnEx, runTChanLoggingT)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
 import Control.Monad.Catch (MonadThrow (throwM))
@@ -19,11 +19,10 @@ import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
-import Network.HTTP.Types (hContentType)
-import Network.HTTP.Types.Status (Status (statusCode, statusMessage))
+import Network.HTTP.Types (Header, Status (statusCode, statusMessage), hContentType)
 import Network.URI (URIAuth (uriPort, uriRegName), nullURIAuth)
 import Rerefined (unrefine)
-import Servant
+import Servant hiding (Header)
 
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -62,7 +61,7 @@ toHandler env (AppM readerT) = do
 
             throwError
                 err500
-                    { errHeaders = [(hContentType, "application/problem+json")]
+                    { errHeaders = [contentTypeProbleamJson]
                     , errBody = encode (problemDetails False port etyUnknownError Nothing Nothing)
                     }
         Right a -> pure a
@@ -77,9 +76,23 @@ toServerError port ApiException{..} = do
         ServerError
             { errHTTPCode = statusCode apiHttpStatus
             , errReasonPhrase = reason
-            , errHeaders = [(hContentType, "application/problem+json")]
+            , errHeaders = [contentTypeProbleamJson]
             , errBody = encode details
             }
+
+badRequestErrorFormatter :: Int -> ErrorFormatter
+badRequestErrorFormatter port _ _ err =
+    err400
+        { errHeaders = [contentTypeProbleamJson]
+        , errBody = encode (problemDetails False port etyInvalidRequestFormat (Just (Text.pack err)) Nothing)
+        }
+
+missingResourceErrorFormatter :: Int -> NotFoundErrorFormatter
+missingResourceErrorFormatter port _ =
+    err404
+        { errHeaders = [contentTypeProbleamJson]
+        , errBody = encode (problemDetails False port etyMissingResource Nothing Nothing)
+        }
 
 problemDetails :: Bool -> Int -> ErrorType -> Maybe Text -> Maybe Value -> ProblemDetails
 problemDetails secure port errorType errorDescription errorDetails =
@@ -110,6 +123,9 @@ problemDetails secure port errorType errorDescription errorDetails =
                 , pdErrors = errorDetails
                 }
      in details
+
+contentTypeProbleamJson :: Header
+contentTypeProbleamJson = (hContentType, "application/problem+json")
 
 byteStringToString :: (HasCallStack, MonadThrow m) => ByteString -> m String
 byteStringToString bs =
