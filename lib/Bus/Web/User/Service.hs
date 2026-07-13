@@ -22,6 +22,7 @@ import Rerefined.Predicates (And)
 import Valida (Validation (..))
 
 import Bus.Database.Repository.User qualified as UserRepo
+import Data.Text qualified as Text
 
 data NewUser = NewUser
     { usrAccount :: Refined (And Trimmed NotEmpty) Text
@@ -36,7 +37,7 @@ validateNewUser object =
         Right user -> pure user
   where
     parser = do
-        account <- key "account" asText
+        account <- Text.strip <$> key "account" asText
         password <- key "password" asText
 
         let result =
