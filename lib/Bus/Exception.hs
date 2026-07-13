@@ -19,7 +19,7 @@ module Bus.Exception (
 import Bus.Util.MessageCode (errorApiInvalidCredentials, errorApiInvalidRequestFormat, errorApiInvalidRequestParameters, errorApiUnknownError)
 import Control.Exception (Exception (..), ExceptionWithContext, SomeAsyncException, throwIO)
 import Crypto.Store.Error (StoreError)
-import Data.Aeson (ToJSON)
+import Data.Aeson (Object)
 import Data.Text (Text)
 import Data.Typeable (typeOf)
 import Network.HTTP.Types (Status)
@@ -37,25 +37,13 @@ newtype CryptoStoreException = CryptoStoreException StoreError deriving (Show)
 instance Exception CryptoStoreException where
     displayException e@(CryptoStoreException err) = show (typeOf e) <> ": " <> show err
 
-data ApiException = forall a. (ToJSON a) => ApiException
+data ApiException = ApiException
     { apiHttpStatus :: Status
     , apiErrorType :: ErrorType
     , apiErrorDescription :: Maybe Text
-    , apiErrorDetails :: Maybe a
+    , apiErrorDetails :: Maybe Object
     }
-
-instance Show ApiException where
-    show ApiException{..} =
-        mconcat
-            [ "ApiException {apiHttpStatus = "
-            , show apiHttpStatus
-            , ", apiErrorType = "
-            , show apiErrorType
-            , ", apiErrorDescription = "
-            , show apiErrorDescription
-            , ", apiErrorDetails = <HIDDEN>"
-            , "}"
-            ]
+    deriving (Show)
 
 instance Exception ApiException
 
