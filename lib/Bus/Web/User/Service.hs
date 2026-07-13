@@ -10,6 +10,7 @@ import Bus.Validation.Error (requestValidationException)
 import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.IO.Class (MonadIO (liftIO))
+import Crypto.KDF.BCrypt (hashPassword)
 import Data.Aeson (Object)
 import Data.Aeson.BetterErrors (asText, key, throwCustomError)
 import Data.Text (Text)
@@ -23,6 +24,7 @@ import Valida (Validation (..))
 
 import Bus.Database.Repository.User qualified as UserRepo
 import Data.Text qualified as Text
+import Data.Text.Encoding qualified as Text
 
 data NewUser = NewUser
     { usrAccount :: Refined (And Trimmed NotEmpty) Text
@@ -53,12 +55,13 @@ save :: (MonadDatabase m) => NewUser -> m UUID
 save user = do
     userId <- liftIO nextRandom
     now <- liftIO (zonedTimeToLocalTime <$> getZonedTime)
+    hashedPassword <- liftIO . hashPassword 15 . Text.encodeUtf8 . unrefine $ user.usrPassword
 
     UserRepo.save
         User
             { usrId = userId
             , usrAccount = unrefine user.usrAccount
-            , usrPassword = unrefine user.usrPassword
+            , usrPassword = hashedPassword
             , usrCreateTime = now
             , usrUpdateTime = now
             }

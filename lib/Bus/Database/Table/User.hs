@@ -3,6 +3,7 @@
 
 module Bus.Database.Table.User (UserT (..), User, UserId) where
 
+import Data.ByteString (ByteString)
 import Data.Functor.Identity (Identity)
 import Data.Text (Text)
 import Data.Time (LocalTime)
@@ -13,7 +14,7 @@ import GHC.Generics (Generic)
 data UserT f = User
     { usrId :: Columnar f UUID
     , usrAccount :: Columnar f Text
-    , usrPassword :: Columnar f Text
+    , usrPassword :: Columnar f ByteString
     , usrCreateTime :: Columnar f LocalTime
     , usrUpdateTime :: Columnar f LocalTime
     }

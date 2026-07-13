@@ -38,4 +38,8 @@
 
         <modifyDataType tableName="user" columnName="update_time" newDataType="timestamp" />
     </changeSet>
+
+    <changeSet id="202607131244" author="star">
+        <modifyDataType tableName="user" columnName="password" newDataType="bytea" />
+    </changeSet>
 </databaseChangeLog>
