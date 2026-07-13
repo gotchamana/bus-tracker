@@ -60,9 +60,11 @@ toHandler env (AppM readerT) = do
 
             logging (logErrorEx ["Unknown error"] ewc)
 
-            let details = problemDetails False port etyUnknownError Nothing Nothing
-
-            throwError err500{errBody = encode details}
+            throwError
+                err500
+                    { errHeaders = [(hContentType, "application/problem+json")]
+                    , errBody = encode (problemDetails False port etyUnknownError Nothing Nothing)
+                    }
         Right a -> pure a
 
 toServerError :: (HasCallStack, MonadThrow m) => Int -> ApiException -> m ServerError
