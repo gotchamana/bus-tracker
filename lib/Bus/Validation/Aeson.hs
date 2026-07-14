@@ -28,7 +28,7 @@ parseObject :: Parse (NonEmpty ValidationError) a -> Object -> Either (NonEmpty 
 parseObject parser object = first toValidationErrors (parseValue parser (Object object))
 
 parseObjectM :: (Monad m) => ParseT (NonEmpty ValidationError) m a -> Object -> m (Either (NonEmpty ValidationError) a)
-parseObjectM parser object = first toValidationErrors <$> (parseValueM parser (Object object))
+parseObjectM parser object = first toValidationErrors <$> parseValueM parser (Object object)
 
 toValidationErrors :: ParseError (NonEmpty ValidationError) -> NonEmpty ValidationError
 toValidationErrors = \case

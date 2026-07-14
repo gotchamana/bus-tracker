@@ -9,7 +9,7 @@ import Database.PostgreSQL.Simple.Transaction (defaultTransactionMode)
 
 existsByAccount :: (MonadDatabase m, MonadFail m) => Text -> m Bool
 existsByAccount account = withTransactionMode defaultTransactionMode $ \conn -> do
-    Just count <- runBeam conn $ runSelectReturningOne $ select $ do
+    Just count <- runBeam conn . runSelectReturningOne . select .
         aggregate_ (\_ -> as_ @Int32 countAll_) $ do
             user <- all_ (btUser busTrackerDb)
             guard_ (usrAccount user ==. val_ account)

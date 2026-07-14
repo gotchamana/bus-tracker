@@ -10,13 +10,14 @@ module Bus.Util.MessageCode (
     errorValidationNotEmpty,
     errorValidationValidPath,
     errorValidationNetworkPort,
-    errorValidationUnknownError,
     errorValidationValidJsonSyntax,
     errorValidationRequiredJsonKey,
     errorValidationRequiredJsonArrayItem,
     errorValidationValidJsonType,
     errorValidationValidJsonInteger,
     errorValidationUnknownJsonError,
+    errorValidationDuplicateUserAccount,
+    errorValidationUnknownError,
 ) where
 
 import Data.Text (Text)
@@ -65,6 +66,9 @@ errorValidationValidJsonInteger = "error.validation.valid-json-integer"
 
 errorValidationUnknownJsonError :: Text
 errorValidationUnknownJsonError = "error.validation.unknown-json-error"
+
+errorValidationDuplicateUserAccount :: Text
+errorValidationDuplicateUserAccount = "error.validation.duplicate-user-account"
 
 errorValidationUnknownError :: Text
 errorValidationUnknownError = "error.validation.unknown-error"
