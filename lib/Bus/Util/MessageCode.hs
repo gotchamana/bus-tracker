@@ -8,6 +8,7 @@ module Bus.Util.MessageCode (
     errorApiUnknownError,
     errorValidationTrimmed,
     errorValidationNotEmpty,
+    errorValidationLength,
     errorValidationValidPath,
     errorValidationNetworkPort,
     errorValidationValidJsonSyntax,
@@ -42,6 +43,9 @@ errorValidationTrimmed = "error.validation.trimmed"
 
 errorValidationNotEmpty :: Text
 errorValidationNotEmpty = "error.validation.not-empty"
+
+errorValidationLength :: Text
+errorValidationLength = "error.validation.length"
 
 errorValidationValidPath :: Text
 errorValidationValidPath = "error.validation.valid-path"

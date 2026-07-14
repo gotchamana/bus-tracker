@@ -8,7 +8,7 @@ import Bus.Database.Table.User (UserT (..))
 import Bus.Util.MessageCode (errorValidationDuplicateUserAccount)
 import Bus.Validation.Aeson (parseObjectM)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
-import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
+import Bus.Validation.Rerefined (Length, NotEmpty, Trimmed, refineField)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans (lift)
@@ -32,8 +32,8 @@ import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 
 data NewUser = NewUser
-    { usrAccount :: Refined (And Trimmed NotEmpty) Text
-    , usrPassword :: Refined NotEmpty Text
+    { usrAccount :: Refined (And Trimmed (And NotEmpty (Length 5 20))) Text
+    , usrPassword :: Refined (And NotEmpty (Length 12 20)) Text
     }
     deriving (Show)
 
