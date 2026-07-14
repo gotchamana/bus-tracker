@@ -35,6 +35,7 @@ library bus-tracker-internal
     Bus.Database.Repository.User
     Bus.Database.Table.User
     Bus.Exception
+    Bus.Logger
     Bus.Logging
     Bus.Servant
     Bus.Servant.Auth
@@ -50,6 +51,7 @@ library bus-tracker-internal
   build-depends:
     , aeson                 >=2.2.5    && <2.3
     , aeson-better-errors   >=0.9.1    && <0.10
+    , ansi-terminal         >=1.1.5    && <1.2
     , async                 >=2.2.6    && <2.3
     , base                  >=4.20.2.0 && <5
     , beam-core             >=0.11.1   && <0.12

@@ -46,11 +46,22 @@ import TextShow (TextShow (showt))
 import Data.ByteString.Char8 qualified as BC
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import qualified Bus.Logger as L
 
 defaultMain :: IO ()
 defaultMain = do
     config <- loadConfig [osp|data/config.json|]
     (keyStore, keyStorePassword) <- loadKeyStore (cfgSecurity config)
+
+    chan <- newBroadcastTChanIO
+    duplicatedChan <- atomically (dupTChan chan)
+
+    L.withAsyncLogging duplicatedChan $ \_ -> L.runTChanLoggingT chan $ do
+        L.logTrace "aaa"
+        L.logDebug "foo"
+        L.logInfo "foo"
+        L.logWarn "bar"
+        L.logError "foo"
 
     chan <- newBroadcastTChanIO
     duplicatedChan <- atomically (dupTChan chan)
