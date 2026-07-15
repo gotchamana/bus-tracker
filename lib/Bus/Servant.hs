@@ -5,17 +5,18 @@ module Bus.Servant (waiApp) where
 import Bus.App (AppM, Config (cfgServer), Env (envConfig), Server (svrPort))
 import Bus.Servant.Auth
 import Bus.Util (badRequestErrorFormatter, missingResourceErrorFormatter, toHandler)
+import Bus.Web.Auth.Api (AuthApi, authApi)
 import Bus.Web.User.Api (UserApi, userApi)
 import Rerefined (unrefine)
 import Servant
 
-type Api = UserApi
+type Api = AuthApi :<|> UserApi
 
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
 server :: ServerT Api AppM
-server = userApi
+server = authApi :<|> userApi
 
 errorFormatters :: Env -> ErrorFormatters
 errorFormatters env =

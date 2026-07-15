@@ -2,12 +2,12 @@
 @port = 8080
 @root =
 
-### Register user
+### Login
 
-POST http://{{host}}:{{port}}{{root}}/users
+POST http://{{host}}:{{port}}{{root}}/auth/login
 Content-Type: application/json
 
 {
-  "account": "admin",
+  "account": "",
   "password": "passwordpassword"
 }
