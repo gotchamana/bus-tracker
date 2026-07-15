@@ -8,7 +8,7 @@ module Bus.Main (defaultMain) where
 import Bus.App (Config (..), Database (..), Env (..), Security (..), Server (..))
 import Bus.Auth (KeyStore, readKeyStore)
 import Bus.Exception (isAsyncException)
-import Bus.Logging (logErrorEx, logInfo, logInfo', runTChanLoggingT, withAsyncLogging)
+import Bus.Logger (LogEvent, logErrorEx, logInfo, logInfo', runTChanLoggingT, withAsyncLogging)
 import Bus.Servant (waiApp)
 import Control.Concurrent.STM (TChan, atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
@@ -16,7 +16,6 @@ import Control.Exception (ExceptionWithContext (ExceptionWithContext), bracket, 
 import Control.Monad (unless, void)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Logger.CallStack (LogLine)
 import Data.Aeson (AesonException (AesonException), eitherDecodeStrict)
 import Data.ByteString (ByteString)
 import Data.Function ((&))
@@ -46,22 +45,11 @@ import TextShow (TextShow (showt))
 import Data.ByteString.Char8 qualified as BC
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-import qualified Bus.Logger as L
 
 defaultMain :: IO ()
 defaultMain = do
     config <- loadConfig [osp|data/config.json|]
     (keyStore, keyStorePassword) <- loadKeyStore (cfgSecurity config)
-
-    chan <- newBroadcastTChanIO
-    duplicatedChan <- atomically (dupTChan chan)
-
-    L.withAsyncLogging duplicatedChan $ \_ -> L.runTChanLoggingT chan $ do
-        L.logTrace "aaa"
-        L.logDebug "foo"
-        L.logInfo "foo"
-        L.logWarn "bar"
-        L.logError "foo"
 
     chan <- newBroadcastTChanIO
     duplicatedChan <- atomically (dupTChan chan)
@@ -115,7 +103,7 @@ withDatabasePool Database{..} = bracket createDbPool destroyAllResources
 
         newPool poolConfig
 
-warpSettings :: TChan LogLine -> Port -> Settings
+warpSettings :: TChan LogEvent -> Port -> Settings
 warpSettings chan port =
     defaultSettings
         & setPort port

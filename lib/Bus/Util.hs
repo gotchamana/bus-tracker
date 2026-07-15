@@ -6,7 +6,7 @@ module Bus.Util (toHandler, badRequestErrorFormatter, missingResourceErrorFormat
 
 import Bus.App (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
 import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
-import Bus.Logging (logErrorEx, logWarnEx, runTChanLoggingT)
+import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))

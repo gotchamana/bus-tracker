@@ -4,6 +4,7 @@
 module Bus.Logger (
     MonadLogger (..),
     LoggingT (..),
+    LogEvent,
     withAsyncLogging,
     runTChanLoggingT,
     logTrace,
@@ -24,6 +25,7 @@ module Bus.Logger (
 ) where
 
 import Bus.Exception (isAsyncException)
+import Bus.Validation.Rerefined (NotEmpty)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, readTChan, tryReadTChan)
@@ -32,13 +34,17 @@ import Control.Exception (Exception (displayException), ExceptionWithContext (Ex
 import Control.Monad (forever)
 import Control.Monad.Catch (MonadThrow (throwM), SomeException)
 import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.Reader (ReaderT (ReaderT))
+import Data.Char (isSpace)
 import Data.Foldable (Foldable (toList), for_)
-import Data.List (isSuffixOf)
+import Data.List (dropWhileEnd, isSuffixOf)
 import Data.List.NonEmpty (NonEmpty ((:|)))
+import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Typeable (cast)
 import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule), callStack, getCallStack)
+import Rerefined (Refined, refine, unrefine)
 import System.Console.ANSI (Color (Black, Cyan, Green, Magenta, Red, Yellow), ColorIntensity (Dull, Vivid), ConsoleLayer (Foreground), SGR (Reset, SetColor), setSGRCode)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
 import System.Process (Pid, getCurrentPid)
@@ -57,7 +63,7 @@ data LogEvent = LogEvent
     , logThreadId :: ThreadId
     , logSourceLocation :: Maybe SrcLoc
     , logLevel :: LogLevel
-    , logMessage :: NonEmpty Text
+    , logMessage :: NonEmpty (Refined NotEmpty Text)
     }
 
 data LogLevel = Trace | Debug | Info | Warn | Error
@@ -88,6 +94,9 @@ instance (MonadFail m) => MonadFail (LoggingT m) where
 
 instance (MonadIO m) => MonadLogger (LoggingT m) where
     logger str = LoggingT $ \f -> liftIO (f str)
+
+instance (MonadLogger m) => MonadLogger (ReaderT r m) where
+    logger event = ReaderT $ \_ -> logger event
 
 runTChanLoggingT :: TChan LogEvent -> LoggingT m a -> m a
 runTChanLoggingT chan (LoggingT logging) = logging $ \event -> atomically (writeTChan chan event)
@@ -141,26 +150,30 @@ log :: (MonadLogger m, MonadIO m) => CallStack -> LogLevel -> Text -> m ()
 log cs level msg = log' cs level [msg]
 
 log' :: (MonadLogger m, MonadIO m) => CallStack -> LogLevel -> [Text] -> m ()
-log' _ _ [] = pure ()
-log' cs level (m : ms) = do
-    currentTime <- liftIO getCurrentTime
-    pid <- liftIO getCurrentPid
-    threadId <- liftIO myThreadId
+log' cs level msgs = do
+    case mapMaybe (eitherToMaybe . refine) . mapLast Text.stripEnd . dropWhileEnd isBlank $ msgs of
+        [] -> pure ()
+        (m : ms) -> do
+            currentTime <- liftIO getCurrentTime
+            pid <- liftIO getCurrentPid
+            threadId <- liftIO myThreadId
 
-    let source = case getCallStack cs of
-            [] -> Nothing
-            (_, loc) : _ -> Just loc
-        logEvent =
-            LogEvent
-                { logTimestamp = currentTime
-                , logProcessId = pid
-                , logThreadId = threadId
-                , logSourceLocation = source
-                , logLevel = level
-                , logMessage = m :| ms
-                }
+            let source = case getCallStack cs of
+                    [] -> Nothing
+                    (_, loc) : _ -> Just loc
+                logEvent =
+                    LogEvent
+                        { logTimestamp = currentTime
+                        , logProcessId = pid
+                        , logThreadId = threadId
+                        , logSourceLocation = source
+                        , logLevel = level
+                        , logMessage = m :| ms
+                        }
 
-    logger logEvent
+            logger logEvent
+  where
+    isBlank = Text.all isSpace
 
 logEx :: (MonadLogger m, MonadIO m, Exception e) => CallStack -> LogLevel -> [Text] -> ExceptionWithContext e -> m ()
 logEx cs level msgs ewc@(ExceptionWithContext _ e) =
@@ -199,21 +212,18 @@ printLogEvent = Text.putStrLn . formatLog
 
 formatLog :: LogEvent -> Text
 formatLog LogEvent{..} =
-    let locModule = maybe "<unknown>" srcLocModule logSourceLocation
+    let colorized = True
+        locModule = maybe "<unknown>" srcLocModule logSourceLocation
      in Text.concat . concat $
-            [ ansiColor True Vivid Black (Text.pack (formatTime defaultTimeLocale "%FT%T%3Q" logTimestamp))
+            [ ansiColor colorized Vivid Black (Text.pack (formatTime defaultTimeLocale "%FT%T%3Q" logTimestamp))
             , [" "]
-            , formatLogLevel True logLevel
+            , formatLogLevel colorized logLevel
             , [" "]
-            , ansiColor True Dull Magenta (showt logProcessId)
-            , [Text.pack (setSGRCode [SetColor Foreground Vivid Black])]
-            , [" --- ["]
-            , [showt logThreadId]
-            , ["] "]
-            , [Text.pack (setSGRCode [Reset])]
-            , ansiColor True Dull Cyan (Text.pack locModule)
-            , ansiColor True Vivid Black " : "
-            , toList (mapLast' Text.stripEnd logMessage)
+            , ansiColor colorized Dull Magenta (showt logProcessId)
+            , ansiColor' colorized Vivid Black [" --- [", showt logThreadId, "] "]
+            , ansiColor colorized Dull Cyan (Text.pack locModule)
+            , ansiColor colorized Vivid Black " : "
+            , toList (unrefine <$> logMessage)
             ]
 
 formatLogLevel :: Bool -> LogLevel -> [Text]
@@ -225,12 +235,14 @@ formatLogLevel colorized = \case
     Error -> ansiColor colorized Vivid Red "ERROR"
 
 ansiColor :: Bool -> ColorIntensity -> Color -> Text -> [Text]
-ansiColor True intensity color text =
-    [ Text.pack (setSGRCode [SetColor Foreground intensity color])
-    , text
-    , ansiReset
-    ]
-ansiColor False _ _ text = [text]
+ansiColor colorized intensity color text = ansiColor' colorized intensity color [text]
+
+ansiColor' :: Bool -> ColorIntensity -> Color -> [Text] -> [Text]
+ansiColor' True intensity color texts =
+    case texts of
+        [] -> []
+        _ -> [Text.pack (setSGRCode [SetColor Foreground intensity color])] <> texts <> [ansiReset]
+ansiColor' False _ _ texts = texts
 
 ansiReset :: Text
 ansiReset = Text.pack (setSGRCode [Reset])
@@ -248,9 +260,10 @@ mapLast _ [] = []
 mapLast f [x] = [f x]
 mapLast f (x : xs) = x : mapLast f xs
 
-mapLast' :: (a -> a) -> NonEmpty a -> NonEmpty a
-mapLast' f (x :| []) = f x :| []
-mapLast' f (x :| xs) = x :| mapLast f xs
+eitherToMaybe :: Either e a -> Maybe a
+eitherToMaybe = \case
+    Left _ -> Nothing
+    Right a -> Just a
 
 isSomeException :: (Exception e) => e -> Bool
 isSomeException e =

@@ -12,12 +12,11 @@ module Bus.App (
 import Bus.Auth (KeyStore)
 import Bus.Database (MonadDatabase (..))
 import Bus.Exception (rethrowIO)
-import Bus.Logging (logDebug, runTChanLoggingT)
+import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
 import Bus.Validation.Rerefined (NetworkPort, NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
 import Control.Exception (Exception (displayException, toException), ExceptionWithContext (ExceptionWithContext), SomeException, mask, try)
 import Control.Monad.Catch (MonadThrow)
-import Control.Monad.Logger.CallStack (LogLine, LoggingT, MonadLogger, MonadLoggerIO)
 import Control.Monad.Reader (MonadIO (liftIO), MonadReader (ask), ReaderT (runReaderT), asks)
 import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:), (.:?))
 import Data.Aeson.Types (Parser)
@@ -46,7 +45,6 @@ newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
         , MonadIO
         , MonadReader Env
         , MonadLogger
-        , MonadLoggerIO
         , MonadThrow
         , MonadFail
         )
@@ -87,7 +85,7 @@ instance MonadDatabase AppM where
 
 data Env = Env
     { envConfig :: Config
-    , envLoggingChan :: TChan LogLine
+    , envLoggingChan :: TChan LogEvent
     , envKeyStore :: KeyStore
     , envKeyStorePassword :: ByteString
     , envDbPool :: Pool Connection
