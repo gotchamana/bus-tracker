@@ -30,7 +30,7 @@ import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, readTChan, tryReadTChan)
 import Control.Concurrent.STM.TChan (TChan, writeTChan)
-import Control.Exception (Exception (displayException), ExceptionWithContext (ExceptionWithContext), catch)
+import Control.Exception (Exception (displayException), ExceptionWithContext (ExceptionWithContext), catch, throwIO)
 import Control.Monad (forever)
 import Control.Monad.Catch (MonadThrow (throwM), SomeException)
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -45,8 +45,8 @@ import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Typeable (cast)
 import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule), callStack, getCallStack)
 import Rerefined (Refined, refine, unrefine)
-import System.Console.ANSI (Color (Black, Cyan, Green, Magenta, Red, Yellow), ColorIntensity (Dull, Vivid), ConsoleLayer (Foreground), SGR (Reset, SetColor), setSGRCode)
-import System.IO (BufferMode (LineBuffering), hSetBuffering, stdout)
+import System.Console.ANSI (Color (Black, Cyan, Green, Magenta, Red, Yellow), ColorIntensity (Dull, Vivid), ConsoleLayer (Foreground), SGR (Reset, SetColor), hSupportsANSIColor, setSGRCode)
+import System.IO (BufferMode (LineBuffering), Handle, hPutStr, hPutStrLn, hSetBuffering, stdout)
 import System.Process (Pid, getCurrentPid)
 import TextShow (TextShow (showt))
 import Prelude hiding (log)
@@ -189,31 +189,35 @@ logEx cs level msgs ewc@(ExceptionWithContext _ e) =
                 else displayException ewc
 
 withAsyncLogging :: TChan LogEvent -> (Async () -> IO ()) -> IO ()
-withAsyncLogging chan = withAsync (catch @SomeException logging handleException)
+withAsyncLogging chan = withAsync $ do
+    colorized <- hSupportsANSIColor stdout
+    logging stdout colorized `catch` handleException stdout colorized
   where
-    logging = do
-        hSetBuffering stdout LineBuffering
+    logging handle colorized = do
+        hSetBuffering handle LineBuffering
 
-        forever (atomically (readTChan chan) >>= printLogEvent)
-    handleException e =
+        forever (atomically (readTChan chan) >>= hPrintLogEvent handle colorized)
+    handleException :: Handle -> Bool -> SomeException -> IO ()
+    handleException handle colorized e =
         if isAsyncException e
             then do
                 logs <- atomically $ unfoldrM (\_ -> fmap (,chan) <$> tryReadTChan chan) chan
-                for_ logs printLogEvent
+                for_ logs (hPrintLogEvent handle colorized)
+
+                throwIO e
             else do
                 let msg = "Logging failed: " <> displayException e
 
                 if "\n" `isSuffixOf` msg
-                    then putStr msg
-                    else putStrLn msg
+                    then hPutStr handle msg
+                    else hPutStrLn handle msg
 
-printLogEvent :: LogEvent -> IO ()
-printLogEvent = Text.putStrLn . formatLog
+hPrintLogEvent :: Handle -> Bool -> LogEvent -> IO ()
+hPrintLogEvent handle colorized event = Text.hPutStrLn handle (formatLog colorized event)
 
-formatLog :: LogEvent -> Text
-formatLog LogEvent{..} =
-    let colorized = True
-        locModule = maybe "<unknown>" srcLocModule logSourceLocation
+formatLog :: Bool -> LogEvent -> Text
+formatLog colorized LogEvent{..} =
+    let locModule = maybe "<unknown>" srcLocModule logSourceLocation
      in Text.concat . concat $
             [ ansiColor colorized Vivid Black (Text.pack (formatTime defaultTimeLocale "%FT%T%3Q" logTimestamp))
             , [" "]
