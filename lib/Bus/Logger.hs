@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
@@ -43,7 +44,7 @@ import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Typeable (cast)
-import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule), callStack, getCallStack)
+import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule, srcLocStartCol, srcLocStartLine), callStack, getCallStack)
 import Rerefined (Refined, refine, unrefine)
 import System.Console.ANSI (Color (Black, Cyan, Green, Magenta, Red, Yellow), ColorIntensity (Dull, Vivid), ConsoleLayer (Foreground), SGR (Reset, SetColor), hSupportsANSIColor, setSGRCode)
 import System.IO (BufferMode (LineBuffering), Handle, hPutStr, hPutStrLn, hSetBuffering, stdout)
@@ -217,7 +218,18 @@ hPrintLogEvent handle colorized event = Text.hPutStrLn handle (formatLog coloriz
 
 formatLog :: Bool -> LogEvent -> Text
 formatLog colorized LogEvent{..} =
-    let locModule = maybe "<unknown>" srcLocModule logSourceLocation
+    let location =
+            maybe
+                ["<unknown>"]
+                ( \srcLoc ->
+                    [ Text.pack srcLoc.srcLocModule
+                    , ":"
+                    , showt srcLoc.srcLocStartLine
+                    , ":"
+                    , showt srcLoc.srcLocStartCol
+                    ]
+                )
+                logSourceLocation
      in Text.concat . concat $
             [ ansiColor colorized Vivid Black (Text.pack (formatTime defaultTimeLocale "%FT%T%3Q" logTimestamp))
             , [" "]
@@ -225,7 +237,7 @@ formatLog colorized LogEvent{..} =
             , [" "]
             , ansiColor colorized Dull Magenta (showt logProcessId)
             , ansiColor' colorized Vivid Black [" --- [", showt logThreadId, "] "]
-            , ansiColor colorized Dull Cyan (Text.pack locModule)
+            , ansiColor' colorized Dull Cyan location
             , ansiColor colorized Vivid Black " : "
             , toList (unrefine <$> logMessage)
             ]
