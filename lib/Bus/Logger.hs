@@ -32,8 +32,9 @@ import Control.Exception (Exception (displayException), ExceptionWithContext (Ex
 import Control.Monad (forever)
 import Control.Monad.Catch (MonadThrow (throwM), SomeException)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Data.Foldable (for_)
+import Data.Foldable (Foldable (toList), for_)
 import Data.List (isSuffixOf)
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Typeable (cast)
@@ -56,7 +57,7 @@ data LogEvent = LogEvent
     , logThreadId :: ThreadId
     , logSourceLocation :: Maybe SrcLoc
     , logLevel :: LogLevel
-    , logMessage :: Text
+    , logMessage :: NonEmpty Text
     }
 
 data LogLevel = Trace | Debug | Info | Warn | Error
@@ -137,7 +138,11 @@ logErrorEx :: (HasCallStack, MonadLogger m, MonadIO m, Exception e) => [Text] ->
 logErrorEx = logEx callStack Error
 
 log :: (MonadLogger m, MonadIO m) => CallStack -> LogLevel -> Text -> m ()
-log cs level msg = do
+log cs level msg = log' cs level [msg]
+
+log' :: (MonadLogger m, MonadIO m) => CallStack -> LogLevel -> [Text] -> m ()
+log' _ _ [] = pure ()
+log' cs level (m : ms) = do
     currentTime <- liftIO getCurrentTime
     pid <- liftIO getCurrentPid
     threadId <- liftIO myThreadId
@@ -152,15 +157,10 @@ log cs level msg = do
                 , logThreadId = threadId
                 , logSourceLocation = source
                 , logLevel = level
-                , logMessage = msg
+                , logMessage = m :| ms
                 }
 
     logger logEvent
-
-log' :: (MonadLogger m, MonadIO m) => CallStack -> LogLevel -> [Text] -> m ()
-log' cs level = \case
-    [] -> pure ()
-    msgs -> log cs level (Text.concat msgs)
 
 logEx :: (MonadLogger m, MonadIO m, Exception e) => CallStack -> LogLevel -> [Text] -> ExceptionWithContext e -> m ()
 logEx cs level msgs ewc@(ExceptionWithContext _ e) =
@@ -200,31 +200,23 @@ printLogEvent = Text.putStrLn . formatLog
 formatLog :: LogEvent -> Text
 formatLog LogEvent{..} =
     let locModule = maybe "<unknown>" srcLocModule logSourceLocation
-     in Text.concat
-            [ Text.pack (setSGRCode [SetColor Foreground Vivid Black])
-            , Text.pack (formatTime defaultTimeLocale "%FT%T%3Q" logTimestamp)
-            , Text.pack (setSGRCode [Reset])
-            , " "
+     in Text.concat . concat $
+            [ ansiColor True Vivid Black (Text.pack (formatTime defaultTimeLocale "%FT%T%3Q" logTimestamp))
+            , [" "]
             , formatLogLevel True logLevel
-            , " "
-            , Text.pack (setSGRCode [SetColor Foreground Dull Magenta])
-            , showt logProcessId
-            , Text.pack (setSGRCode [Reset])
-            , Text.pack (setSGRCode [SetColor Foreground Vivid Black])
-            , " --- ["
-            , showt logThreadId
-            , "] "
-            , Text.pack (setSGRCode [Reset])
-            , Text.pack (setSGRCode [SetColor Foreground Dull Cyan])
-            , Text.pack locModule
-            , Text.pack (setSGRCode [Reset])
-            , Text.pack (setSGRCode [SetColor Foreground Vivid Black])
-            , " : "
-            , Text.pack (setSGRCode [Reset])
-            , Text.stripEnd logMessage
+            , [" "]
+            , ansiColor True Dull Magenta (showt logProcessId)
+            , [Text.pack (setSGRCode [SetColor Foreground Vivid Black])]
+            , [" --- ["]
+            , [showt logThreadId]
+            , ["] "]
+            , [Text.pack (setSGRCode [Reset])]
+            , ansiColor True Dull Cyan (Text.pack locModule)
+            , ansiColor True Vivid Black " : "
+            , toList (mapLast' Text.stripEnd logMessage)
             ]
 
-formatLogLevel :: Bool -> LogLevel -> Text
+formatLogLevel :: Bool -> LogLevel -> [Text]
 formatLogLevel colorized = \case
     Trace -> ansiColor colorized Vivid Green "TRACE"
     Debug -> ansiColor colorized Vivid Green "DEBUG"
@@ -232,14 +224,13 @@ formatLogLevel colorized = \case
     Warn -> ansiColor colorized Vivid Yellow "WARN "
     Error -> ansiColor colorized Vivid Red "ERROR"
 
-ansiColor :: Bool -> ColorIntensity -> Color -> Text -> Text
+ansiColor :: Bool -> ColorIntensity -> Color -> Text -> [Text]
 ansiColor True intensity color text =
-    Text.concat
-        [ Text.pack (setSGRCode [SetColor Foreground intensity color])
-        , text
-        , ansiReset
-        ]
-ansiColor False _ _ text = text
+    [ Text.pack (setSGRCode [SetColor Foreground intensity color])
+    , text
+    , ansiReset
+    ]
+ansiColor False _ _ text = [text]
 
 ansiReset :: Text
 ansiReset = Text.pack (setSGRCode [Reset])
@@ -251,6 +242,15 @@ unfoldrM f seed = do
     case m of
         Just (x, seed') -> (x :) <$> unfoldrM f seed'
         Nothing -> pure []
+
+mapLast :: (a -> a) -> [a] -> [a]
+mapLast _ [] = []
+mapLast f [x] = [f x]
+mapLast f (x : xs) = x : mapLast f xs
+
+mapLast' :: (a -> a) -> NonEmpty a -> NonEmpty a
+mapLast' f (x :| []) = f x :| []
+mapLast' f (x :| xs) = x :| mapLast f xs
 
 isSomeException :: (Exception e) => e -> Bool
 isSomeException e =
