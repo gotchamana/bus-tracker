@@ -12,6 +12,7 @@ module Bus.Auth (
 ) where
 
 import Bus.Exception (CryptoStoreException (CryptoStoreException), JwtException (JwtException))
+import Bus.Util.Either (eitherToMaybe)
 import Control.Applicative (Alternative (empty))
 import Control.Exception (Exception)
 import Control.Lens ((&), (.~), (?~))
@@ -199,8 +200,3 @@ liftEitherEx f = \case
 
 findJust :: (a -> Maybe b) -> [a] -> Maybe b
 findJust = (listToMaybe .) . mapMaybe
-
-eitherToMaybe :: Either a b -> Maybe b
-eitherToMaybe = \case
-    Left _ -> Nothing
-    Right r -> Just r

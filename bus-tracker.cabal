@@ -39,6 +39,7 @@ library bus-tracker-internal
     Bus.Servant
     Bus.Servant.Auth
     Bus.Util.Aeson
+    Bus.Util.Either
     Bus.Util.MessageCode
     Bus.Util.Servant
     Bus.Validation.Aeson

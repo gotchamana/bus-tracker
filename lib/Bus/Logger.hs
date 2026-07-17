@@ -26,6 +26,7 @@ module Bus.Logger (
 ) where
 
 import Bus.Exception (isAsyncException)
+import Bus.Util.Either (eitherToMaybe)
 import Bus.Validation.Rerefined (NotEmpty)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
@@ -275,11 +276,6 @@ mapLast :: (a -> a) -> [a] -> [a]
 mapLast _ [] = []
 mapLast f [x] = [f x]
 mapLast f (x : xs) = x : mapLast f xs
-
-eitherToMaybe :: Either e a -> Maybe a
-eitherToMaybe = \case
-    Left _ -> Nothing
-    Right a -> Just a
 
 isSomeException :: (Exception e) => e -> Bool
 isSomeException e =

@@ -5,6 +5,7 @@ module Bus.Web.Auth.Service (validateLogin) where
 
 import Bus.Auth (TokenType (Access), signToken)
 import Bus.Database (MonadDatabase)
+import Bus.Util.Either (maybeToEither)
 import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
 import Bus.Validation.Aeson (parseObject)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
@@ -78,8 +79,3 @@ validateLogin object keyPair = do
         if validatePassword password' hash
             then pure login
             else liftEither (Left (err :| []))
-
-maybeToEither :: a -> Maybe b -> Either a b
-maybeToEither err = \case
-    Just a -> Right a
-    Nothing -> Left err
