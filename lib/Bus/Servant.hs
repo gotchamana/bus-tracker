@@ -4,7 +4,7 @@ module Bus.Servant (waiApp) where
 
 import Bus.App (AppM, Config (cfgServer), Env (envConfig), Server (svrPort))
 import Bus.Servant.Auth
-import Bus.Util (badRequestErrorFormatter, missingResourceErrorFormatter, toHandler)
+import Bus.Util.Servant (badRequestErrorFormatter, missingResourceErrorFormatter, toHandler)
 import Bus.Web.Auth.Api (AuthApi, authApi)
 import Bus.Web.User.Api (UserApi, userApi)
 import Rerefined (unrefine)

@@ -2,19 +2,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Bus.Util (toHandler, badRequestErrorFormatter, missingResourceErrorFormatter, fieldPrefixRemovalOptions) where
+module Bus.Util.Servant (toHandler, badRequestErrorFormatter, missingResourceErrorFormatter) where
 
 import Bus.App (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
 import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
 import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
+import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))
-import Data.Aeson (Options (fieldLabelModifier), ToJSON (toEncoding, toJSON), Value, defaultOptions, encode, genericToEncoding, genericToJSON)
+import Data.Aeson (ToJSON (toEncoding, toJSON), Value, encode, genericToEncoding, genericToJSON)
 import Data.ByteString (ByteString)
-import Data.Char (toLower)
 import Data.Foldable (for_)
-import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -132,15 +131,3 @@ byteStringToString bs =
     case Text.decodeUtf8' bs of
         Left err -> throwM err
         Right text -> pure (Text.unpack text)
-
-fieldPrefixRemovalOptions :: String -> Options
-fieldPrefixRemovalOptions fieldPrefix =
-    defaultOptions
-        { fieldLabelModifier = removePrefix
-        }
-  where
-    removePrefix field = case stripPrefix fieldPrefix field of
-        Just result -> case result of
-            [] -> []
-            (x : xs) -> toLower x : xs
-        Nothing -> field

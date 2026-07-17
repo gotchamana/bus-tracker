@@ -4,7 +4,7 @@
 module Bus.Servant.Auth (authContextProxy, authHandler, JwtAuth) where
 
 import Bus.App (Env)
-import Bus.Util (toHandler)
+import Bus.Util.Servant (toHandler)
 import Data.Text (Text)
 import Network.Wai (Request)
 import Servant

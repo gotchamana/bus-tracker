@@ -5,7 +5,7 @@ module Bus.Web.Auth.Api (AuthApi, authApi) where
 import Bus.App (AppM, Config (cfgSecurity), Env (envConfig, envKeyStore, envKeyStorePassword), Security (secJwtKeyFriendlyName))
 import Bus.Auth (getKeyByFriendlyName)
 import Bus.Exception (NoSuchKeyException (NoSuchKeyException))
-import Bus.Util (fieldPrefixRemovalOptions)
+import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadReader (ask))
 import Data.Aeson (Object, ToJSON (toEncoding, toJSON), genericToEncoding, genericToJSON)
