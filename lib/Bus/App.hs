@@ -13,17 +13,16 @@ import Bus.Auth (KeyStore)
 import Bus.Database (MonadDatabase (..))
 import Bus.Exception (rethrowIO)
 import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
+import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Bus.Validation.Rerefined (NetworkPort, NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)
 import Control.Exception (Exception (displayException, toException), ExceptionWithContext (ExceptionWithContext), SomeException, mask, try)
 import Control.Monad.Catch (MonadThrow)
 import Control.Monad.Reader (MonadIO (liftIO), MonadReader (ask), ReaderT (runReaderT), asks)
-import Data.Aeson (FromJSON (parseJSON), Options (fieldLabelModifier), defaultOptions, genericParseJSON, withObject, withText, (.:), (.:?))
+import Data.Aeson (FromJSON (parseJSON), genericParseJSON, withObject, withText, (.:), (.:?))
 import Data.Aeson.Types (Parser)
 import Data.ByteString (ByteString)
-import Data.Char (toLower)
 import Data.Coerce (coerce)
-import Data.List (stripPrefix)
 import Data.Pool (Pool, withResource)
 import Data.Text (Text, unpack)
 import Data.Typeable (Proxy (Proxy), typeRep)
@@ -99,7 +98,7 @@ data Config = Config
     deriving (Show, Generic)
 
 instance FromJSON Config where
-    parseJSON = genericParseJSON (customOptions "cfg")
+    parseJSON = genericParseJSON (fieldPrefixRemovalOptions "cfg")
 
 newtype Server = Server
     { svrPort :: Refined NetworkPort Int
@@ -204,12 +203,3 @@ instance FromJSON JsonNetworkPort where
 
 runApp :: AppM a -> Env -> IO a
 runApp (AppM readerT) env@Env{envLoggingChan} = runTChanLoggingT envLoggingChan (runReaderT readerT env)
-
-customOptions :: String -> Options
-customOptions fieldPrefix = defaultOptions{fieldLabelModifier = removePrefix}
-  where
-    removePrefix field = case stripPrefix fieldPrefix field of
-        Just result -> case result of
-            [] -> []
-            (x : xs) -> toLower x : xs
-        Nothing -> field

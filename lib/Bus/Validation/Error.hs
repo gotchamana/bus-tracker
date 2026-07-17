@@ -4,18 +4,15 @@
 module Bus.Validation.Error (ValidationError (..), requestValidationException) where
 
 import Bus.Exception (ApiException (..), etyInvalidRequestParameters)
+import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Data.Aeson (
     FromJSON (parseJSON),
-    Options (fieldLabelModifier),
     ToJSON (toEncoding, toJSON),
-    defaultOptions,
     genericParseJSON,
     genericToEncoding,
     genericToJSON,
  )
-import Data.Char (toLower)
 import Data.HashMap.Strict (HashMap)
-import Data.List (stripPrefix)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import GHC.Generics (Generic)
@@ -32,23 +29,11 @@ data ValidationError = ValidationError
     deriving (Show, Generic)
 
 instance FromJSON ValidationError where
-    parseJSON = genericParseJSON (customOptions "val")
+    parseJSON = genericParseJSON (fieldPrefixRemovalOptions "val")
 
 instance ToJSON ValidationError where
-    toJSON = genericToJSON (customOptions "val")
-    toEncoding = genericToEncoding (customOptions "val")
-
-customOptions :: String -> Options
-customOptions fieldPrefix =
-    defaultOptions
-        { fieldLabelModifier = removePrefix
-        }
-  where
-    removePrefix field = case stripPrefix fieldPrefix field of
-        Just result -> case result of
-            [] -> []
-            (x : xs) -> toLower x : xs
-        Nothing -> field
+    toJSON = genericToJSON (fieldPrefixRemovalOptions "val")
+    toEncoding = genericToEncoding (fieldPrefixRemovalOptions "val")
 
 requestValidationException :: Maybe Text -> NonEmpty ValidationError -> ApiException
 requestValidationException description errors =
