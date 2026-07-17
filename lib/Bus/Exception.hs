@@ -3,6 +3,8 @@
 module Bus.Exception (
     ApiException (..),
     CryptoStoreException (..),
+    JwtException (..),
+    NoSuchKeyException (..),
     ErrorType,
     etyInvalidCredentials,
     etyInvalidRequestFormat,
@@ -18,6 +20,7 @@ module Bus.Exception (
 
 import Bus.Util.MessageCode (errorApiInvalidCredentials, errorApiInvalidRequestFormat, errorApiInvalidRequestParameters, errorApiMissingResource, errorApiUnknownError)
 import Control.Exception (Exception (..), ExceptionWithContext, SomeAsyncException, throwIO)
+import Crypto.JWT (JWTError)
 import Crypto.Store.Error (StoreError)
 import Data.Aeson (Object)
 import Data.Text (Text)
@@ -36,6 +39,16 @@ newtype CryptoStoreException = CryptoStoreException StoreError deriving (Show)
 
 instance Exception CryptoStoreException where
     displayException e@(CryptoStoreException err) = show (typeOf e) <> ": " <> show err
+
+newtype JwtException = JwtException JWTError deriving (Show)
+
+instance Exception JwtException where
+    displayException e@(JwtException err) = show (typeOf e) <> ": " <> show err
+
+newtype NoSuchKeyException = NoSuchKeyException String deriving (Show)
+
+instance Exception NoSuchKeyException where
+    displayException e@(NoSuchKeyException key) = show (typeOf e) <> ": " <> key
 
 data ApiException = ApiException
     { apiHttpStatus :: Status

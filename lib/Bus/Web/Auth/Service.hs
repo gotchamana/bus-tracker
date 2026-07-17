@@ -1,25 +1,33 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bus.Web.Auth.Service (validateLogin) where
 
-import Bus.Auth (Token)
+import Bus.Auth (TokenType (Access), signToken)
 import Bus.Database (MonadDatabase)
-import Bus.Validation.Aeson (parseObjectM)
+import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
+import Bus.Validation.Aeson (parseObject)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
 import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
+import Control.Exception (throwIO)
 import Control.Monad.Catch (MonadThrow (throwM))
+import Control.Monad.Except (liftEither, runExceptT)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans (MonadTrans (lift))
+import Crypto.JWT (encodeCompact)
 import Crypto.KDF.BCrypt (validatePassword)
+import Crypto.Store.PKCS8 (KeyPair)
 import Data.Aeson (Object)
 import Data.Aeson.BetterErrors (asText, key, throwCustomError)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import GHC.Stack (HasCallStack)
-import Rerefined (Refined)
+import Rerefined (Refined, unrefine)
 import Rerefined.Predicates (And)
 import Valida (Validation (Failure, Success))
 
 import Bus.Database.Repository.User qualified as UserRepo
+import Data.ByteString qualified as ByteString
 import Data.HashMap.Strict qualified as HashMap
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
@@ -29,44 +37,49 @@ data Login = Login
     , lgPassword :: Refined NotEmpty Text
     }
 
-validateLogin :: (HasCallStack, MonadDatabase m, MonadThrow m) => Object -> m Login
-validateLogin object = do
-    result <- parseObjectM parser object
+validateLogin :: (HasCallStack, MonadDatabase m, MonadThrow m) => Object -> KeyPair -> m Text
+validateLogin object keyPair = do
+    result <- runExceptT $ liftEither (parseObject parser object) >>= checkPassword
 
     case result of
         Left err -> throwM (requestValidationException Nothing err)
-        Right login -> pure login
+        Right login -> liftIO $ do
+            signedJwt <- signToken keyPair (unrefine login.lgAccount) 600 Access
+
+            case Text.decodeUtf8' (ByteString.toStrict (encodeCompact signedJwt)) of
+                Left err -> throwIO err
+                Right token -> pure token
   where
     parser = do
         account <- Text.strip <$> key "account" asText
         password <- key "password" asText
 
-        v <- lift (checkPassword account password)
-
         let result =
                 Login
                     <$> refineField "account" account
                     <*> refineField "password" password
-                    <* v
 
         case result of
-            Failure err -> throwCustomError err
             Success login -> pure login
-    checkPassword account password = do
+            Failure err -> throwCustomError err
+    checkPassword login = do
         let err =
                 ValidationError
                     { valField = Nothing
                     , valMessage = "Invalid account or password"
-                    , valMessageCode = "error.validation.invalid-user-credentials"
+                    , valMessageCode = errorValidationInvalidUserCredentials
                     , valMessageArgs = HashMap.empty
                     }
-            password' = Text.encodeUtf8 password
+            password' = Text.encodeUtf8 (unrefine login.lgPassword)
 
-        maybeHash <- UserRepo.findPasswordByAccount account
+        maybeHash <- lift (UserRepo.findPasswordByAccount (unrefine login.lgAccount))
+        hash <- liftEither (maybeToEither (err :| []) maybeHash)
 
-        case maybeHash of
-            Just hash ->
-                if validatePassword password' hash
-                    then pure (Success ())
-                    else pure (Failure (err :| []))
-            Nothing -> pure (Failure (err :| []))
+        if validatePassword password' hash
+            then pure login
+            else liftEither (Left (err :| []))
+
+maybeToEither :: a -> Maybe b -> Either a b
+maybeToEither err = \case
+    Just a -> Right a
+    Nothing -> Left err

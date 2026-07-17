@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Bus.Util (toHandler, badRequestErrorFormatter, missingResourceErrorFormatter) where
+module Bus.Util (toHandler, badRequestErrorFormatter, missingResourceErrorFormatter, fieldPrefixRemovalOptions) where
 
 import Bus.App (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
 import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
@@ -37,8 +37,8 @@ data ProblemDetails = ProblemDetails
     deriving (Generic)
 
 instance ToJSON ProblemDetails where
-    toJSON = genericToJSON (customOptions "pd")
-    toEncoding = genericToEncoding (customOptions "pd")
+    toJSON = genericToJSON (fieldPrefixRemovalOptions "pd")
+    toEncoding = genericToEncoding (fieldPrefixRemovalOptions "pd")
 
 toHandler :: Env -> AppM a -> Handler a
 toHandler env (AppM readerT) = do
@@ -133,8 +133,8 @@ byteStringToString bs =
         Left err -> throwM err
         Right text -> pure (Text.unpack text)
 
-customOptions :: String -> Options
-customOptions fieldPrefix =
+fieldPrefixRemovalOptions :: String -> Options
+fieldPrefixRemovalOptions fieldPrefix =
     defaultOptions
         { fieldLabelModifier = removePrefix
         }

@@ -18,6 +18,7 @@ module Bus.Util.MessageCode (
     errorValidationValidJsonInteger,
     errorValidationUnknownJsonError,
     errorValidationDuplicateUserAccount,
+    errorValidationInvalidUserCredentials,
     errorValidationUnknownError,
 ) where
 
@@ -73,6 +74,9 @@ errorValidationUnknownJsonError = "error.validation.unknown-json-error"
 
 errorValidationDuplicateUserAccount :: Text
 errorValidationDuplicateUserAccount = "error.validation.duplicate-user-account"
+
+errorValidationInvalidUserCredentials :: Text
+errorValidationInvalidUserCredentials = "error.validation.invalid-user-credentials"
 
 errorValidationUnknownError :: Text
 errorValidationUnknownError = "error.validation.unknown-error"

@@ -11,7 +11,7 @@ module Bus.Auth (
     verifyToken,
 ) where
 
-import Bus.Exception (CryptoStoreException (CryptoStoreException))
+import Bus.Exception (CryptoStoreException (CryptoStoreException), JwtException (JwtException))
 import Control.Applicative (Alternative (empty))
 import Control.Exception (Exception)
 import Control.Lens ((&), (.~), (?~))
@@ -34,6 +34,7 @@ import Crypto.JWT (
     fromX509PrivKey,
     fromX509PubKey,
     newJWSHeaderProtected,
+    runJOSE,
     signJWT,
     verifyJWT,
  )
@@ -143,11 +144,15 @@ getKeyBagByFriendlyName name = findJust f
                 PKCS8ShroudedKeyBag _ -> bag'
                 _ -> Nothing
 
-signToken :: (MonadRandom m, MonadTime m, MonadError JWTError m) => KeyPair -> Text -> Int -> TokenType -> m SignedJWT
+signToken :: (HasCallStack, MonadRandom m, MonadTime m, MonadThrow m) => KeyPair -> Text -> Int -> TokenType -> m SignedJWT
 signToken keyPair username expirationSec tokenType = do
     claims <- mkClaims (unpack username) expirationSec
-    jwk <- fromX509PrivKey (keyPairToPrivKey keyPair)
-    alg <- bestJWSAlg jwk
+    jwk <- case fromX509PrivKey (keyPairToPrivKey keyPair) of
+        Left err -> throwM (JwtException err)
+        Right a -> pure a
+    alg <- case bestJWSAlg jwk of
+        Left err -> throwM (JwtException err)
+        Right a -> pure a
 
     let header = newJWSHeaderProtected alg
         token =
@@ -156,7 +161,11 @@ signToken keyPair username expirationSec tokenType = do
                 , tokClaimsSet = claims
                 }
 
-    signJWT jwk header token
+    result <- runJOSE (signJWT jwk header token)
+
+    case result of
+        Left err -> throwM (JwtException err)
+        Right a -> pure a
 
 verifyToken :: (MonadTime m, MonadError JWTError m) => KeyPair -> SignedJWT -> m Token
 verifyToken keyPair jwt = do

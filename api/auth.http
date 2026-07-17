@@ -8,6 +8,6 @@ POST http://{{host}}:{{port}}{{root}}/auth/login
 Content-Type: application/json
 
 {
-  "account": "",
+  "account": "admin",
   "password": "passwordpassword"
 }
