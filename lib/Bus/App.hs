@@ -9,10 +9,10 @@ module Bus.App (
     Security (..),
 ) where
 
-import Bus.Auth (KeyStore)
 import Bus.Database (MonadDatabase (..))
 import Bus.Exception (rethrowIO)
 import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
+import Bus.Security.KeyStore (KeyStore)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Bus.Validation.Rerefined (NetworkPort, NotEmpty, Trimmed, ValidPath)
 import Control.Concurrent.STM.TChan (TChan)

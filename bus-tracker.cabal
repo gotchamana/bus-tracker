@@ -36,6 +36,7 @@ library bus-tracker-internal
     Bus.Database.Table.User
     Bus.Exception
     Bus.Logger
+    Bus.Security.KeyStore
     Bus.Servant
     Bus.Servant.Auth
     Bus.Util.Aeson

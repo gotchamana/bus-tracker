@@ -2,24 +2,17 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Bus.Auth (
-    KeyStore,
     Token (..),
     TokenType (..),
-    getKeyByFriendlyName,
-    readKeyStore,
     signToken,
     verifyToken,
 ) where
 
-import Bus.Exception (CryptoStoreException (CryptoStoreException), JwtException (JwtException))
-import Bus.Util.Either (eitherToMaybe)
+import Bus.Exception (JwtException (JwtException))
 import Control.Applicative (Alternative (empty))
-import Control.Exception (Exception)
 import Control.Lens ((&), (.~), (?~))
-import Control.Monad (guard)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Except (MonadError)
-import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Time (MonadTime (currentTime))
 import Crypto.JWT (
     ClaimsSet,
@@ -39,34 +32,14 @@ import Crypto.JWT (
     signJWT,
     verifyJWT,
  )
-import Crypto.Store.PKCS12 (
-    Bag (Bag, bagAttributes, bagInfo),
-    SafeBag,
-    SafeContents (SafeContents),
-    SafeInfo (KeyBag, PKCS8ShroudedKeyBag, SafeContentsBag),
-    getFriendlyName,
-    getSafeKeys,
-    readP12FileFromMemory,
-    recover,
-    recoverAuthenticated,
-    toProtectionPassword,
-    unPKCS12,
- )
 import Crypto.Store.PKCS8 (KeyPair, keyPairToPrivKey, keyPairToPubKey)
 import Data.Aeson (FromJSON, ToJSON (toJSON), Value (Object, String), parseJSON, withObject, withText, (.:))
 import Data.Aeson.KeyMap (insert)
-import Data.ByteString (ByteString)
-import Data.Coerce (coerce)
-import Data.Maybe (listToMaybe, mapMaybe)
 import Data.String (IsString (fromString))
 import Data.Text (Text, unpack)
 import Data.Time (addUTCTime)
 import Data.Typeable (Proxy (Proxy), typeRep)
 import GHC.Stack (HasCallStack)
-import System.File.OsPath (readFile')
-import System.OsPath (OsPath)
-
-newtype KeyStore = KeyStore [SafeBag]
 
 data Token = Token
     { tokTokenType :: TokenType
@@ -110,40 +83,6 @@ instance ToJSON TokenType where
     toJSON = \case
         Access -> String "access"
         Refresh -> String "refresh"
-
-readKeyStore :: (HasCallStack, MonadThrow m, MonadIO m) => OsPath -> ByteString -> m KeyStore
-readKeyStore path password = do
-    p12 <- liftIO (readFile' path)
-
-    liftEitherEx CryptoStoreException $ do
-        optAuthP12 <- readP12FileFromMemory p12
-        (passwd, pkcs12) <- recoverAuthenticated password optAuthP12
-        contents :: [[SafeBag]] <- coerce . recover passwd . unPKCS12 $ pkcs12
-        pure . KeyStore . concat $ contents
-
-getKeyByFriendlyName :: String -> ByteString -> KeyStore -> Maybe KeyPair
-getKeyByFriendlyName name password (KeyStore bags) = do
-    bag <- getKeyBagByFriendlyName name bags
-
-    let contents = SafeContents [bag]
-        passwd = toProtectionPassword password
-        keyPairs = traverse (recover passwd) (getSafeKeys contents)
-
-    eitherToMaybe keyPairs >>= listToMaybe
-
-getKeyBagByFriendlyName :: String -> [SafeBag] -> Maybe SafeBag
-getKeyBagByFriendlyName name = findJust f
-  where
-    f bag@Bag{..} =
-        let bag' = do
-                name' <- getFriendlyName bagAttributes
-                guard (name == name')
-                Just bag
-         in case bagInfo of
-                SafeContentsBag (SafeContents bags) -> getKeyBagByFriendlyName name bags
-                KeyBag _ -> bag'
-                PKCS8ShroudedKeyBag _ -> bag'
-                _ -> Nothing
 
 signToken :: (HasCallStack, MonadRandom m, MonadTime m, MonadThrow m) => KeyPair -> Text -> Int -> TokenType -> m SignedJWT
 signToken keyPair username expirationSec tokenType = do
@@ -192,11 +131,3 @@ mkClaims subject expirationSec = do
             & claimIat ?~ NumericDate now
             & claimNbf ?~ NumericDate now
             & claimExp ?~ NumericDate expiration
-
-liftEitherEx :: (HasCallStack, Exception e', MonadThrow m) => (e -> e') -> Either e a -> m a
-liftEitherEx f = \case
-    Left e -> throwM (f e)
-    Right a -> pure a
-
-findJust :: (a -> Maybe b) -> [a] -> Maybe b
-findJust = (listToMaybe .) . mapMaybe

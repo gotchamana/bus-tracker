@@ -6,9 +6,9 @@
 module Bus.Main (defaultMain) where
 
 import Bus.App (Config (..), Database (..), Env (..), Security (..), Server (..))
-import Bus.Auth (KeyStore, readKeyStore)
 import Bus.Exception (isAsyncException)
 import Bus.Logger (LogEvent, logErrorEx, logInfo, logInfo', runTChanLoggingT, withAsyncLogging)
+import Bus.Security.KeyStore (KeyStore, readKeyStore)
 import Bus.Servant (waiApp)
 import Control.Concurrent.STM (TChan, atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
