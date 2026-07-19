@@ -25,12 +25,11 @@ module Bus.Logger (
     logErrorEx,
 ) where
 
-import Bus.Exception (isAsyncException)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, readTChan, tryReadTChan)
 import Control.Concurrent.STM.TChan (TChan, writeTChan)
-import Control.Exception (Exception (displayException), ExceptionWithContext (ExceptionWithContext), catch, throwIO)
+import Control.Exception (Exception (displayException), ExceptionWithContext (ExceptionWithContext), Handler (Handler), SomeAsyncException, catches, throwIO)
 import Control.Monad (forever)
 import Control.Monad.Catch (MonadThrow (throwM), SomeException)
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -189,26 +188,22 @@ logEx cs level msgs ewc@(ExceptionWithContext _ e) =
 withAsyncLogging :: TChan LogEvent -> (Async () -> IO ()) -> IO ()
 withAsyncLogging chan = withAsync $ do
     colorized <- hSupportsANSIColor stdout
-    logging stdout colorized `catch` handleException stdout colorized
+    logging stdout colorized `catches` [asyncExceptionHandler stdout colorized, exceptionHandler stdout]
   where
     logging handle colorized = do
         hSetBuffering handle LineBuffering
-
         forever (atomically (readTChan chan) >>= hPrintLogEvent handle colorized)
-    handleException :: Handle -> Bool -> SomeException -> IO ()
-    handleException handle colorized e =
-        if isAsyncException e
-            then do
-                logs <- atomically $ unfoldrM (\_ -> fmap (,chan) <$> tryReadTChan chan) chan
-                for_ logs (hPrintLogEvent handle colorized)
+    asyncExceptionHandler handle colorized = Handler $ \(e :: SomeAsyncException) -> do
+        logs <- atomically $ unfoldrM (\_ -> fmap (,chan) <$> tryReadTChan chan) chan
+        for_ logs (hPrintLogEvent handle colorized)
 
-                throwIO e
-            else do
-                let msg = "Logging failed: " <> displayException e
+        throwIO e
+    exceptionHandler handle = Handler $ \(e :: SomeException) -> do
+        let msg = "Logging failed: " <> displayException e
 
-                if "\n" `isSuffixOf` msg
-                    then hPutStr handle msg
-                    else hPutStrLn handle msg
+        if "\n" `isSuffixOf` msg
+            then hPutStr handle msg
+            else hPutStrLn handle msg
 
 hPrintLogEvent :: Handle -> Bool -> LogEvent -> IO ()
 hPrintLogEvent handle colorized event = Text.hPutStrLn handle (formatLog colorized event)
