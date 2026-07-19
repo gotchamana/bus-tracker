@@ -37,15 +37,13 @@ library bus-tracker-internal
     Bus.Logger
     Bus.Security.Jwt
     Bus.Security.KeyStore
-    Bus.Servant
-    Bus.Servant.Auth
     Bus.Util.Aeson
     Bus.Util.Either
     Bus.Util.MessageCode
-    Bus.Util.Servant
     Bus.Validation.Aeson
     Bus.Validation.Error
     Bus.Validation.Rerefined
+    Bus.Web.App.Servant
     Bus.Web.Auth.Api
     Bus.Web.Auth.Service
     Bus.Web.User.Api

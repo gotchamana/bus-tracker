@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 
-module Bus.Util.Servant (toHandler, badRequestErrorFormatter, missingResourceErrorFormatter) where
+module Bus.Web.App.Servant (waiApp) where
 
 import Bus.App (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
 import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
 import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
+import Bus.Web.Auth.Api (AuthApi, authApi)
+import Bus.Web.User.Api (UserApi, userApi)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))
@@ -20,11 +23,19 @@ import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
 import Network.HTTP.Types (Header, Status (statusCode, statusMessage), hContentType)
 import Network.URI (URIAuth (uriPort, uriRegName), nullURIAuth)
+import Network.Wai (Request)
 import Rerefined (unrefine)
 import Servant hiding (Header)
+import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
 
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+
+type Api = AuthApi :<|> UserApi
+
+type JwtAuth = AuthProtect "jwt"
+
+type instance AuthServerData JwtAuth = Text
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -38,6 +49,50 @@ data ProblemDetails = ProblemDetails
 instance ToJSON ProblemDetails where
     toJSON = genericToJSON (fieldPrefixRemovalOptions "pd")
     toEncoding = genericToEncoding (fieldPrefixRemovalOptions "pd")
+
+waiApp :: Env -> Application
+waiApp env = serveWithContext apiProxy (errorFormatters env :. authHandler env :. EmptyContext) server'
+  where
+    server' = hoistServerWithContext apiProxy authContextProxy (toHandler env) server
+
+apiProxy :: Proxy Api
+apiProxy = Proxy
+
+authContextProxy :: Proxy '[AuthHandler Request Text]
+authContextProxy = Proxy
+
+authHandler :: Env -> AuthHandler Request Text
+authHandler env = mkAuthHandler f
+  where
+    f request = toHandler env $ do
+        pure "user foo"
+
+server :: ServerT Api AppM
+server = authApi :<|> userApi
+
+errorFormatters :: Env -> ErrorFormatters
+errorFormatters env =
+    let port = unrefine env.envConfig.cfgServer.svrPort
+     in defaultErrorFormatters
+            { bodyParserErrorFormatter = badRequestErrorFormatter port
+            , urlParseErrorFormatter = badRequestErrorFormatter port
+            , headerParseErrorFormatter = badRequestErrorFormatter port
+            , notFoundErrorFormatter = missingResourceErrorFormatter port
+            }
+
+badRequestErrorFormatter :: Int -> ErrorFormatter
+badRequestErrorFormatter port _ _ err =
+    err400
+        { errHeaders = [contentTypeProbleamJson]
+        , errBody = encode (problemDetails False port etyInvalidRequestFormat (Just (Text.pack err)) Nothing)
+        }
+
+missingResourceErrorFormatter :: Int -> NotFoundErrorFormatter
+missingResourceErrorFormatter port _ =
+    err404
+        { errHeaders = [contentTypeProbleamJson]
+        , errBody = encode (problemDetails False port etyMissingResource Nothing Nothing)
+        }
 
 toHandler :: Env -> AppM a -> Handler a
 toHandler env (AppM readerT) = do
@@ -78,20 +133,6 @@ toServerError port ApiException{..} = do
             , errHeaders = [contentTypeProbleamJson]
             , errBody = encode details
             }
-
-badRequestErrorFormatter :: Int -> ErrorFormatter
-badRequestErrorFormatter port _ _ err =
-    err400
-        { errHeaders = [contentTypeProbleamJson]
-        , errBody = encode (problemDetails False port etyInvalidRequestFormat (Just (Text.pack err)) Nothing)
-        }
-
-missingResourceErrorFormatter :: Int -> NotFoundErrorFormatter
-missingResourceErrorFormatter port _ =
-    err404
-        { errHeaders = [contentTypeProbleamJson]
-        , errBody = encode (problemDetails False port etyMissingResource Nothing Nothing)
-        }
 
 problemDetails :: Bool -> Int -> ErrorType -> Maybe Text -> Maybe Value -> ProblemDetails
 problemDetails secure port errorType errorDescription errorDetails =
