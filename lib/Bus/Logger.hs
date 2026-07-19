@@ -26,8 +26,6 @@ module Bus.Logger (
 ) where
 
 import Bus.Exception (isAsyncException)
-import Bus.Util.Either (eitherToMaybe)
-import Bus.Validation.Rerefined (NotEmpty)
 import Control.Concurrent (ThreadId, myThreadId)
 import Control.Concurrent.Async (Async, withAsync)
 import Control.Concurrent.STM (atomically, readTChan, tryReadTChan)
@@ -41,12 +39,10 @@ import Data.Char (isSpace)
 import Data.Foldable (Foldable (toList), for_)
 import Data.List (dropWhileEnd, isSuffixOf)
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Maybe (mapMaybe)
 import Data.Text (Text)
 import Data.Time (UTCTime, defaultTimeLocale, formatTime, getCurrentTime)
 import Data.Typeable (cast)
 import GHC.Stack (CallStack, HasCallStack, SrcLoc (srcLocModule, srcLocStartCol, srcLocStartLine), callStack, getCallStack)
-import Rerefined (Refined, refine, unrefine)
 import System.Console.ANSI (Color (Black, Cyan, Green, Magenta, Red, Yellow), ColorIntensity (Dull, Vivid), ConsoleLayer (Foreground), SGR (Reset, SetColor), hSupportsANSIColor, setSGRCode)
 import System.IO (BufferMode (LineBuffering), Handle, hPutStr, hPutStrLn, hSetBuffering, stdout)
 import System.Process (Pid, getCurrentPid)
@@ -65,7 +61,7 @@ data LogEvent = LogEvent
     , logThreadId :: ThreadId
     , logSourceLocation :: Maybe SrcLoc
     , logLevel :: LogLevel
-    , logMessage :: NonEmpty (Refined NotEmpty Text)
+    , logMessage :: NonEmpty Text
     }
 
 data LogLevel = Trace | Debug | Info | Warn | Error
@@ -153,7 +149,7 @@ log cs level msg = log' cs level [msg]
 
 log' :: (MonadLogger m, MonadIO m) => CallStack -> LogLevel -> [Text] -> m ()
 log' cs level msgs = do
-    case mapMaybe (eitherToMaybe . refine) . mapLast Text.stripEnd . dropWhileEnd isBlank $ msgs of
+    case filter (not . Text.null) . mapLast Text.stripEnd . dropWhileEnd isBlank $ msgs of
         [] -> pure ()
         (m : ms) -> do
             currentTime <- liftIO getCurrentTime
@@ -240,7 +236,7 @@ formatLog colorized LogEvent{..} =
             , ansiColor' colorized Vivid Black [" --- [", showt logThreadId, "] "]
             , ansiColor' colorized Dull Cyan location
             , ansiColor colorized Vivid Black " : "
-            , toList (unrefine <$> logMessage)
+            , toList logMessage
             ]
 
 formatLogLevel :: Bool -> LogLevel -> [Text]
