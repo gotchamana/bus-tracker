@@ -3,8 +3,8 @@
 
 module Bus.Web.Auth.Service (validateLogin) where
 
-import Bus.Auth (TokenType (Access), signToken)
 import Bus.Database (MonadDatabase)
+import Bus.Security.Jwt (TokenType (Access), signToken)
 import Bus.Util.Either (maybeToEither)
 import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
 import Bus.Validation.Aeson (parseObject)

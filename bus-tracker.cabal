@@ -30,12 +30,12 @@ library bus-tracker-internal
   exposed-modules:    Bus.Main
   other-modules:
     Bus.App
-    Bus.Auth
     Bus.Database
     Bus.Database.Repository.User
     Bus.Database.Table.User
     Bus.Exception
     Bus.Logger
+    Bus.Security.Jwt
     Bus.Security.KeyStore
     Bus.Servant
     Bus.Servant.Auth

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Bus.Auth (
+module Bus.Security.Jwt (
     Token (..),
     TokenType (..),
     signToken,
