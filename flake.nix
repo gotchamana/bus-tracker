@@ -27,10 +27,12 @@
               cabal-install
               cabal-plan
               fourmolu
+              graphmod
               haskell-language-server
               hlint
-              pkgs.watchexec
+              pkgs.graphviz
               pkgs.pkg-config
+              pkgs.watchexec
             ];
             buildInputs = with pkgs; [
               libpq
