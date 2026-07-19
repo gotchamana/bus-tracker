@@ -2,9 +2,9 @@
 
 module Bus.Web.User.Api (UserApi, userApi) where
 
-import Bus.App (AppM)
 import Bus.Database (BusTrackerDb (btUser), MonadDatabase (runBeam, withTransactionMode), busTrackerDb)
 import Bus.Logger (logDebug')
+import Bus.Web.App.Types (AppM)
 import Data.Aeson (Object)
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.App (
+module Bus.Web.App.Types (
     AppM (..),
     Env (..),
     Config (..),
