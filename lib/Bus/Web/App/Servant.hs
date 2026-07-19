@@ -8,7 +8,7 @@ module Bus.Web.App.Servant (waiApp) where
 import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
 import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
-import Bus.Web.App.Types (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
+import Bus.Web.App.Type (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
 import Bus.Web.Auth.Api (AuthApi, authApi)
 import Bus.Web.User.Api (UserApi, userApi)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
