@@ -1,7 +1,7 @@
 module Bus.Database.Repository.User (save, existsByAccount, findPasswordByAccount) where
 
-import Bus.Database (BusTrackerDb (btUser), MonadDatabase (runBeam, withTransactionMode), busTrackerDb)
-import Bus.Database.Table.User (User, UserT (usrAccount, usrPassword))
+import Bus.Database.Class (MonadDatabase (runBeam, withTransactionMode))
+import Bus.Database.Entity (BusTrackerDb (btUser), User, UserT (usrAccount, usrPassword), busTrackerDb)
 import Data.ByteString (ByteString)
 import Data.Int (Int32)
 import Data.Text (Text)

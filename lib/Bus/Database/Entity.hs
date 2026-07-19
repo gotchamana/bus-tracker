@@ -1,15 +1,28 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Bus.Database.Table.User (UserT (..), User, UserId) where
+module Bus.Database.Entity (
+    BusTrackerDb (..),
+    busTrackerDb,
+    UserT (..),
+    User,
+    UserId,
+) where
 
 import Data.ByteString (ByteString)
 import Data.Functor.Identity (Identity)
 import Data.Text (Text)
 import Data.Time (LocalTime)
 import Data.UUID (UUID)
-import Database.Beam (Beamable, Columnar, Table (PrimaryKey, primaryKey))
+import Database.Beam (Beamable, Columnar, Database, DatabaseSettings, Table (PrimaryKey, primaryKey), TableEntity, defaultDbSettings)
 import GHC.Generics (Generic)
+
+data BusTrackerDb f = BusTrackerDb
+    { btUser :: f (TableEntity UserT)
+    }
+    deriving (Generic)
+
+instance Database be BusTrackerDb
 
 data UserT f = User
     { usrId :: Columnar f UUID
@@ -46,3 +59,6 @@ instance Show User where
             , show usrUpdateTime
             , "}"
             ]
+
+busTrackerDb :: DatabaseSettings be BusTrackerDb
+busTrackerDb = defaultDbSettings

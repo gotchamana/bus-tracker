@@ -29,9 +29,9 @@ library bus-tracker-internal
   import:             commons
   exposed-modules:    Bus.Main
   other-modules:
-    Bus.Database
+    Bus.Database.Class
+    Bus.Database.Entity
     Bus.Database.Repository.User
-    Bus.Database.Table.User
     Bus.Exception
     Bus.Logger
     Bus.Security.Jwt

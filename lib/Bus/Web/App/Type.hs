@@ -9,7 +9,7 @@ module Bus.Web.App.Type (
     Security (..),
 ) where
 
-import Bus.Database (MonadDatabase (..))
+import Bus.Database.Class (MonadDatabase (..))
 import Bus.Exception (rethrowIO)
 import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
 import Bus.Security.KeyStore (KeyStore)
