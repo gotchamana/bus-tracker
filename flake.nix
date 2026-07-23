@@ -11,13 +11,13 @@
         "x86_64-linux"
       ];
       eachSystem = f: nixpkgs.lib.genAttrs supportedSystems f;
+      compiler = "ghc9103";
+      packageName = "bus-tracker";
     in
     {
       devShells = eachSystem (
         system:
         let
-          compiler = "ghc9103";
-          packageName = "bus-tracker";
           pkgs = nixpkgs.legacyPackages.${system};
           haskellPackages = pkgs.haskell.packages.${compiler}.override {
             overrides = final: prev: {
@@ -253,25 +253,17 @@
       packages = eachSystem (
         system:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
-          hpkgs = pkgs.haskell.packages.ghc9124;
-          hpkgs' = hpkgs.extend (
-            self: super: {
-              haskell-language-server = self.callHackageDirect {
-                pkg = "haskell-language-server";
-                ver = "2.14.0.0";
-                sha256 = "sha256-e7pa/QGSqyaxVowGE6DIDrMT/OYTsJL96w40rVgIz3Q=";
-              } { };
-              ghcide = self.callHackageDirect {
-                pkg = "ghcide";
-                ver = "2.14.0.0";
-                sha256 = "sha256-QBsLOV9YaaJFZO2NUQzmEv3FJ6KGJnGeRVWvMdvEyyA=";
-              } { };
-            }
-          );
+          static = import ./package-static.nix {
+            inherit
+              nixpkgs
+              system
+              compiler
+              packageName
+              ;
+          };
         in
         {
-          default = hpkgs'.haskell-language-server;
+          default = static.package;
         }
       );
     };
