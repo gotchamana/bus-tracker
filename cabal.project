@@ -2,3 +2,6 @@ packages: .
 
 package cryptostore
     flags: +use_crypton
+
+package postgresql-libpq
+    flags: +use-pkg-config
