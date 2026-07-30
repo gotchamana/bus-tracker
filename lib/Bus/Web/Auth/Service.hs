@@ -1,16 +1,15 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Web.Auth.Service (validateLogin) where
+module Bus.Web.Auth.Service (Login, Authentication (..), AuthToken (..), validateLogin, signAuthToken) where
 
 import Bus.Database.Class (MonadDatabase)
-import Bus.Security.Jwt (TokenType (Access), signToken)
+import Bus.Security.Jwt (TokenType (Access, Refresh), signToken)
 import Bus.Util.Either (maybeToEither)
 import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
 import Bus.Validation.Aeson (parseObject)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
 import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
-import Control.Exception (throwIO)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Except (liftEither, runExceptT)
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -20,6 +19,7 @@ import Crypto.KDF.BCrypt (validatePassword)
 import Crypto.Store.PKCS8 (KeyPair)
 import Data.Aeson (Object)
 import Data.Aeson.BetterErrors (asText, key, throwCustomError)
+import Data.ByteString (ByteString)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import GHC.Stack (HasCallStack)
@@ -38,18 +38,23 @@ data Login = Login
     , lgPassword :: Refined NotEmpty Text
     }
 
-validateLogin :: (HasCallStack, MonadDatabase m, MonadThrow m) => Object -> KeyPair -> m Text
-validateLogin object keyPair = do
+data Authentication = Authentication
+    { auAccessToken :: AuthToken
+    , auRefreshToken :: AuthToken
+    }
+
+data AuthToken = AuthToken
+    { atTokenValue :: ByteString
+    , atExpirationSec :: Int
+    }
+
+validateLogin :: (HasCallStack, MonadDatabase m, MonadThrow m) => Object -> m Login
+validateLogin object = do
     result <- runExceptT $ liftEither (parseObject parser object) >>= checkPassword
 
     case result of
         Left err -> throwM (requestValidationException Nothing err)
-        Right login -> liftIO $ do
-            signedJwt <- signToken keyPair (unrefine login.lgAccount) 600 Access
-
-            case Text.decodeUtf8' (ByteString.toStrict (encodeCompact signedJwt)) of
-                Left err -> throwIO err
-                Right token -> pure token
+        Right login -> pure login
   where
     parser = do
         account <- Text.strip <$> key "account" asText
@@ -79,3 +84,31 @@ validateLogin object keyPair = do
         if validatePassword password' hash
             then pure login
             else liftEither (Left (err :| []))
+
+signAuthToken :: (HasCallStack, MonadIO m) => KeyPair -> Login -> m Authentication
+signAuthToken keyPair login = do
+    let account = unrefine login.lgAccount
+        accessExp = 10 * 60 -- 10 mins
+        refreshExp = 24 * 60 * 60 -- 1 day
+    (signedAccessJwt, signedRefreshJwt) <-
+        liftIO $
+            (,)
+                <$> signToken keyPair account accessExp Access
+                <*> signToken keyPair account refreshExp Refresh
+
+    let access = ByteString.toStrict (encodeCompact signedAccessJwt)
+        refresh = ByteString.toStrict (encodeCompact signedRefreshJwt)
+
+    pure
+        Authentication
+            { auAccessToken =
+                AuthToken
+                    { atTokenValue = access
+                    , atExpirationSec = accessExp
+                    }
+            , auRefreshToken =
+                AuthToken
+                    { atTokenValue = refresh
+                    , atExpirationSec = refreshExp
+                    }
+            }
