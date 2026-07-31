@@ -33,6 +33,9 @@ createuser --host=$PWD/data/database bus
 
 # Create database
 createdb --host=$PWD/data/database --owner=bus bus-tracker
+
+# Connect to the database
+psql --host=$PWD/data/database --username=bus --dbname=bus-tracker
 ```
 
 #### Configuration
