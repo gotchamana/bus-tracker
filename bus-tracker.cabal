@@ -31,6 +31,7 @@ library bus-tracker-internal
   other-modules:
     Bus.Database.Class
     Bus.Database.Entity
+    Bus.Database.Repository.RefreshToken
     Bus.Database.Repository.User
     Bus.Exception
     Bus.Logger

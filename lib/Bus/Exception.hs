@@ -3,8 +3,10 @@
 module Bus.Exception (
     ApiException (..),
     CryptoStoreException (..),
+    IllegalValueException (..),
     JwtException (..),
     NoSuchKeyException (..),
+    NoSuchValueException (..),
     ErrorType,
     etyInvalidCredentials,
     etyInvalidRequestFormat,
@@ -18,7 +20,13 @@ module Bus.Exception (
     etyMissingResource,
 ) where
 
-import Bus.Util.MessageCode (errorApiInvalidCredentials, errorApiInvalidRequestFormat, errorApiInvalidRequestParameters, errorApiMissingResource, errorApiUnknownError)
+import Bus.Util.MessageCode (
+    errorApiInvalidCredentials,
+    errorApiInvalidRequestFormat,
+    errorApiInvalidRequestParameters,
+    errorApiMissingResource,
+    errorApiUnknownError,
+ )
 import Control.Exception (Exception (..), ExceptionWithContext, SomeAsyncException, throwIO)
 import Crypto.JWT (JWTError)
 import Crypto.Store.Error (StoreError)
@@ -49,6 +57,16 @@ newtype NoSuchKeyException = NoSuchKeyException String deriving (Show)
 
 instance Exception NoSuchKeyException where
     displayException e@(NoSuchKeyException key) = show (typeOf e) <> ": " <> key
+
+newtype NoSuchValueException = NoSuchValueException String deriving (Show)
+
+instance Exception NoSuchValueException where
+    displayException e@(NoSuchValueException msg) = show (typeOf e) <> ": " <> msg
+
+newtype IllegalValueException = IllegalValueException String deriving (Show)
+
+instance Exception IllegalValueException where
+    displayException e@(IllegalValueException msg) = show (typeOf e) <> ": " <> msg
 
 data ApiException = ApiException
     { apiHttpStatus :: Status

@@ -42,4 +42,33 @@
     <changeSet id="202607131244" author="star">
         <modifyDataType tableName="user" columnName="password" newDataType="bytea" />
     </changeSet>
+
+    <changeSet id="202607301733" author="star">
+        <createTable tableName="refresh_token">
+            <column name="id" type="uuid">
+                <constraints primaryKey="true" primaryKeyName="pk_refresh_token" />
+            </column>
+
+            <column name="user_id" type="uuid">
+                <constraints nullable="false" foreignKeyName="fk_refresh_token_user_id"
+                    referencedTableName="user" referencedColumnNames="id" />
+            </column>
+
+            <column name="revoked" type="boolean">
+                <constraints nullable="false" />
+            </column>
+
+            <column name="expire_time" type="timestamp">
+                <constraints nullable="false" />
+            </column>
+
+            <column name="create_time" type="timestamp">
+                <constraints nullable="false" />
+            </column>
+
+            <column name="update_time" type="timestamp">
+                <constraints nullable="false" />
+            </column>
+        </createTable>
+    </changeSet>
 </databaseChangeLog>

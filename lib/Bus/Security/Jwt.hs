@@ -16,7 +16,7 @@ import Control.Monad.Except (MonadError)
 import Control.Monad.Time (MonadTime (currentTime))
 import Crypto.JWT (
     ClaimsSet,
-    HasClaimsSet (claimExp, claimIat, claimIss, claimNbf, claimSub, claimsSet),
+    HasClaimsSet (claimExp, claimIat, claimIss, claimJti, claimNbf, claimSub, claimsSet),
     HasJWTValidationSettings (jwtValidationSettingsAllowedSkew, jwtValidationSettingsIssuerPredicate),
     JWTError,
     MonadRandom,
@@ -84,9 +84,9 @@ instance ToJSON TokenType where
         Access -> String "access"
         Refresh -> String "refresh"
 
-signToken :: (HasCallStack, MonadRandom m, MonadTime m, MonadThrow m) => KeyPair -> Text -> Int -> TokenType -> m SignedJWT
-signToken keyPair username expirationSec tokenType = do
-    claims <- mkClaims (unpack username) expirationSec
+signToken :: (HasCallStack, MonadRandom m, MonadTime m, MonadThrow m) => KeyPair -> Maybe Text -> Text -> Int -> TokenType -> m SignedJWT
+signToken keyPair tokenId username expirationSec tokenType = do
+    claims <- mkClaims tokenId (unpack username) expirationSec
     jwk <- case fromX509PrivKey (keyPairToPrivKey keyPair) of
         Left err -> throwM (JwtException err)
         Right a -> pure a
@@ -118,14 +118,15 @@ verifyToken keyPair jwt = do
     jwk <- fromX509PubKey publicKey
     verifyJWT config jwk jwt
 
-mkClaims :: (MonadTime m) => String -> Int -> m ClaimsSet
-mkClaims subject expirationSec = do
+mkClaims :: (MonadTime m) => Maybe Text -> String -> Int -> m ClaimsSet
+mkClaims tokenId subject expirationSec = do
     now <- currentTime
 
     let expiration = addUTCTime (fromIntegral expirationSec) now
 
     pure $
         emptyClaimsSet
+            & claimJti .~ tokenId
             & claimIss ?~ "bus-tracker"
             & claimSub ?~ fromString subject
             & claimIat ?~ NumericDate now
