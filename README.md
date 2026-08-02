@@ -61,3 +61,17 @@ liquibase update-sql
 # Apply the changes
 liquibase update
 ```
+
+## TODO
+
+- RBAC authorization
+- Re-organize API type module import
+- Add command line option `--config`
+- Add basic single line comment feature for JSON config file
+- Add `basePathSegments` config option
+- Add default config
+- Add log file rotation
+- Auth api
+    - `POST /auth/logout`
+    - `POST /auth/refresh`
+- Bus api
