@@ -24,7 +24,8 @@ import Bus.Web.App.Endpoint (Api, server)
 import Bus.Web.App.Type (
     AppM (AppM),
     Config (cfgSecurity, cfgServer),
-    Env (envConfig, envKeyStore, envKeyStorePassword, envLoggingChan),
+    CookieNames (cknAccessToken),
+    Env (envConfig, envCookieNames, envKeyStore, envKeyStorePassword, envLoggingChan),
     Security (secJwtKeyFriendlyName),
     Server (svrPort),
  )
@@ -89,7 +90,7 @@ authHandler = mkAuthHandler . authenticate
 
 authenticate :: Env -> Request -> Handler Token
 authenticate env request = toHandler env $ do
-    jwt <- case findCookie "accessToken" (requestHeaders request) of
+    jwt <- case findCookie env.envCookieNames.cknAccessToken (requestHeaders request) of
         Just value -> pure value
         Nothing -> throwM defaultException{apiErrorDescription = Just "No token present"}
     keyPair <- getKeyPair

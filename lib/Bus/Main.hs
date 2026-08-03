@@ -9,7 +9,7 @@ import Bus.Exception (isAsyncException)
 import Bus.Logger (LogEvent, logErrorEx, logInfo, logInfo', runTChanLoggingT, withAsyncLogging)
 import Bus.Security.KeyStore (KeyStore, readKeyStore)
 import Bus.Web.App.Servant (waiApp)
-import Bus.Web.App.Type (Config (..), Database (..), Env (..), Security (..), Server (..))
+import Bus.Web.App.Type (Config (..), CookieNames (CookieNames, cknAccessToken, cknRefreshToken), Database (..), Env (..), Security (..), Server (..))
 import Control.Concurrent.STM (TChan, atomically)
 import Control.Concurrent.STM.TChan (dupTChan, newBroadcastTChanIO)
 import Control.Exception (ExceptionWithContext (ExceptionWithContext), bracket, someExceptionContext)
@@ -63,6 +63,11 @@ defaultMain = do
                         , envKeyStore = keyStore
                         , envKeyStorePassword = keyStorePassword
                         , envDbPool = pool
+                        , envCookieNames =
+                            CookieNames
+                                { cknAccessToken = "accessToken"
+                                , cknRefreshToken = "refreshToken"
+                                }
                         }
                 settings = warpSettings chan (unrefine config.cfgServer.svrPort)
                 app = waiApp env

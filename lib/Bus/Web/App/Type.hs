@@ -7,6 +7,7 @@ module Bus.Web.App.Type (
     Server (..),
     Database (..),
     Security (..),
+    CookieNames (..),
 ) where
 
 import Bus.Database.Class (MonadDatabase (..))
@@ -88,6 +89,7 @@ data Env = Env
     , envKeyStore :: KeyStore
     , envKeyStorePassword :: ByteString
     , envDbPool :: Pool Connection
+    , envCookieNames :: CookieNames
     }
 
 data Config = Config
@@ -200,6 +202,11 @@ instance FromJSON JsonNetworkPort where
             Right p -> pure p
 
         pure (JsonNetworkPort port)
+
+data CookieNames = CookieNames
+    { cknAccessToken :: ByteString
+    , cknRefreshToken :: ByteString
+    }
 
 runApp :: AppM a -> Env -> IO a
 runApp (AppM readerT) env@Env{envLoggingChan} = runTChanLoggingT envLoggingChan (runReaderT readerT env)

@@ -1,11 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Bus.Web.Auth.Api (login) where
 
 import Bus.Exception (NoSuchKeyException (NoSuchKeyException))
 import Bus.Security.KeyStore (getKeyByFriendlyName)
-import Bus.Web.App.Type (AppM, Config (cfgSecurity), Env (envConfig, envKeyStore, envKeyStorePassword), Security (secJwtKeyFriendlyName))
+import Bus.Web.App.Type (
+    AppM,
+    Config (cfgSecurity),
+    CookieNames (cknAccessToken, cknRefreshToken),
+    Env (envConfig, envCookieNames, envKeyStore, envKeyStorePassword),
+    Security (secJwtKeyFriendlyName),
+ )
 import Bus.Web.Auth.Service (Authentication (Authentication))
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadReader (ask))
@@ -13,11 +18,7 @@ import Data.Aeson (Object)
 import Data.Function ((&))
 import Rerefined (unrefine)
 import Servant
-import Web.Cookie (
-    SetCookie (..),
-    defaultSetCookie,
-    sameSiteStrict,
- )
+import Web.Cookie (SetCookie (..), defaultSetCookie, sameSiteStrict)
 
 import Bus.Web.Auth.Service qualified as AuthSvc
 import Data.Text qualified as Text
@@ -31,6 +32,7 @@ login object = do
     let jwtName = Text.unpack (unrefine env.envConfig.cfgSecurity.secJwtKeyFriendlyName)
         keyStore = env.envKeyStore
         password = env.envKeyStorePassword
+        cookieNames = env.envCookieNames
 
     Authentication{auAccessToken, auRefreshToken} <-
         case getKeyByFriendlyName jwtName password keyStore of
@@ -39,7 +41,7 @@ login object = do
 
     let accessCookie =
             defaultSetCookie
-                { setCookieName = "accessToken"
+                { setCookieName = cookieNames.cknAccessToken
                 , setCookieValue = auAccessToken.atTokenValue
                 , setCookieHttpOnly = True
                 , setCookieMaxAge = Just (fromIntegral auAccessToken.atExpirationSec)
@@ -48,7 +50,7 @@ login object = do
                 }
         refreshCookie =
             defaultSetCookie
-                { setCookieName = "refreshToken"
+                { setCookieName = cookieNames.cknRefreshToken
                 , setCookieValue = auRefreshToken.atTokenValue
                 , setCookieHttpOnly = True
                 , setCookieMaxAge = Just (fromIntegral auRefreshToken.atExpirationSec)
