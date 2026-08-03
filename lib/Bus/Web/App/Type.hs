@@ -1,9 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Bus.Web.App.Type (
-    JwtAuth,
     AppM (..),
     Env (..),
     Config (..),
@@ -15,7 +12,6 @@ module Bus.Web.App.Type (
 import Bus.Database.Class (MonadDatabase (..))
 import Bus.Exception (rethrowIO)
 import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
-import Bus.Security.Jwt (Token)
 import Bus.Security.KeyStore (KeyStore)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Bus.Validation.Rerefined (NetworkPort, NotEmpty, Trimmed, ValidPath)
@@ -36,15 +32,9 @@ import Database.PostgreSQL.Simple.Transaction (TransactionMode, beginMode, commi
 import GHC.Generics (Generic)
 import Rerefined.Predicate.Logical (And)
 import Rerefined.Refine (Refined, prettyRefineFailure, refine)
-import Servant (AuthProtect)
-import Servant.Server.Experimental.Auth (AuthServerData)
 import System.OsPath (OsPath, encodeUtf)
 
 import Data.Text qualified as Text
-
-type JwtAuth = AuthProtect "jwt"
-
-type instance AuthServerData JwtAuth = Token
 
 newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
     deriving

@@ -20,6 +20,7 @@ import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
 import Bus.Security.Jwt (Token (tokTokenType), TokenType (Access), verifyToken)
 import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
+import Bus.Web.App.Endpoint (Api, server)
 import Bus.Web.App.Type (
     AppM (AppM),
     Config (cfgSecurity, cfgServer),
@@ -27,8 +28,6 @@ import Bus.Web.App.Type (
     Security (secJwtKeyFriendlyName),
     Server (svrPort),
  )
-import Bus.Web.Auth.Api (AuthApi, authApi)
-import Bus.Web.User.Api (UserApi, userApi)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
 import Control.Exception.Context (emptyExceptionContext)
 import Control.Monad.Catch (MonadThrow (throwM))
@@ -53,8 +52,6 @@ import Web.Cookie (parseCookies)
 
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
-
-type Api = AuthApi :<|> UserApi
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -128,9 +125,6 @@ runMockMonadTime :: (MonadIO m) => MockMonadTime a -> m (Either SomeException a)
 runMockMonadTime (MockMonadTime readerT) = do
     time <- liftIO $ (,) <$> getCurrentTime <*> getMonotonicTime
     pure (runReaderT readerT time)
-
-server :: ServerT Api AppM
-server = authApi :<|> userApi
 
 errorFormatters :: Env -> ErrorFormatters
 errorFormatters env =

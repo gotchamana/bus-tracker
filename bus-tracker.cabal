@@ -43,6 +43,7 @@ library bus-tracker-internal
     Bus.Validation.Aeson
     Bus.Validation.Error
     Bus.Validation.Rerefined
+    Bus.Web.App.Endpoint
     Bus.Web.App.Servant
     Bus.Web.App.Type
     Bus.Web.Auth.Api

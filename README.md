@@ -65,7 +65,6 @@ liquibase update
 ## TODO
 
 - RBAC authorization
-- Re-organize API type module import
 - Add command line option `--config`
 - Add basic single line comment feature for JSON config file
 - Add `basePathSegments` config option

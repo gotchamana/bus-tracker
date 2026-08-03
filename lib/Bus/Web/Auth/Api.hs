@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Web.Auth.Api (AuthApi, authApi) where
+module Bus.Web.Auth.Api (login) where
 
 import Bus.Exception (NoSuchKeyException (NoSuchKeyException))
 import Bus.Security.KeyStore (getKeyByFriendlyName)
@@ -21,18 +21,6 @@ import Web.Cookie (
 
 import Bus.Web.Auth.Service qualified as AuthSvc
 import Data.Text qualified as Text
-
-type AuthApi =
-    "auth"
-        :> ( "login"
-                :> ReqBody '[JSON] Object
-                :> PostNoContentWithBody '[JSON] (Headers '[Header "SetCookie" SetCookie, Header "SetCookie" SetCookie] NoContent)
-           )
-
-type PostNoContentWithBody = Verb 'POST 203
-
-authApi :: ServerT AuthApi AppM
-authApi = login
 
 login :: Object -> AppM (Headers '[Header "SetCookie" SetCookie, Header "SetCookie" SetCookie] NoContent)
 login object = do
