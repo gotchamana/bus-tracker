@@ -12,7 +12,6 @@ import Bus.Exception (JwtException (JwtException))
 import Control.Applicative (Alternative (empty))
 import Control.Lens ((&), (.~), (?~))
 import Control.Monad.Catch (MonadThrow (throwM))
-import Control.Monad.Except (MonadError)
 import Control.Monad.Time (MonadTime (currentTime))
 import Crypto.JWT (
     ClaimsSet,
@@ -23,6 +22,7 @@ import Crypto.JWT (
     NumericDate (NumericDate),
     SignedJWT,
     bestJWSAlg,
+    decodeCompact,
     defaultJWTValidationSettings,
     emptyClaimsSet,
     fromX509PrivKey,
@@ -35,11 +35,14 @@ import Crypto.JWT (
 import Crypto.Store.PKCS8 (KeyPair, keyPairToPrivKey, keyPairToPubKey)
 import Data.Aeson (FromJSON, ToJSON (toJSON), Value (Object, String), parseJSON, withObject, withText, (.:))
 import Data.Aeson.KeyMap (insert)
+import Data.ByteString (ByteString)
 import Data.String (IsString (fromString))
 import Data.Text (Text, unpack)
 import Data.Time (addUTCTime)
 import Data.Typeable (Proxy (Proxy), typeRep)
 import GHC.Stack (HasCallStack)
+
+import Data.ByteString qualified as ByteString
 
 data Token = Token
     { tokTokenType :: TokenType
@@ -69,7 +72,7 @@ instance ToJSON Token where
         ins k v (Object o) = Object $ insert k (toJSON v) o
         ins _ _ a = a
 
-data TokenType = Access | Refresh deriving (Show)
+data TokenType = Access | Refresh deriving (Eq, Show)
 
 instance FromJSON TokenType where
     parseJSON = withText name $ \case
@@ -107,16 +110,23 @@ signToken keyPair tokenId username expirationSec tokenType = do
         Left err -> throwM (JwtException err)
         Right a -> pure a
 
-verifyToken :: (MonadTime m, MonadError JWTError m) => KeyPair -> SignedJWT -> m Token
-verifyToken keyPair jwt = do
+verifyToken :: (HasCallStack, MonadTime m, MonadThrow m) => KeyPair -> ByteString -> m Token
+verifyToken keyPair token = do
     let publicKey = keyPairToPubKey keyPair
         config =
             defaultJWTValidationSettings (const True)
                 & jwtValidationSettingsIssuerPredicate .~ (== "bus-tracker")
                 & jwtValidationSettingsAllowedSkew .~ 10
 
-    jwk <- fromX509PubKey publicKey
-    verifyJWT config jwk jwt
+    result :: Either JWTError Token <- runJOSE $ do
+        jwk <- fromX509PubKey publicKey
+        jwt <- decodeCompact @SignedJWT (ByteString.fromStrict token)
+
+        verifyJWT config jwk jwt
+
+    case result of
+        Left err -> throwM (JwtException err)
+        Right t -> pure t
 
 mkClaims :: (MonadTime m) => Maybe Text -> String -> Int -> m ClaimsSet
 mkClaims tokenId subject expirationSec = do

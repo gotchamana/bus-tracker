@@ -5,7 +5,8 @@ module Bus.Web.User.Api (UserApi, userApi) where
 import Bus.Database.Class (MonadDatabase (runBeam, withTransactionMode))
 import Bus.Database.Entity (BusTrackerDb (btUser), busTrackerDb)
 import Bus.Logger (logDebug')
-import Bus.Web.App.Type (AppM)
+import Bus.Security.Jwt (Token)
+import Bus.Web.App.Type (AppM, JwtAuth)
 import Data.Aeson (Object)
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
@@ -19,7 +20,7 @@ import Data.Aeson.KeyMap qualified as KeyMap
 import Data.HashMap.Strict qualified as HashMap
 import Data.Text qualified as Text
 
-type UserApi = "users" :> (ReqBody '[JSON] Object :> PostCreated '[JSON] (HashMap Text UUID) :<|> Get '[JSON] Int)
+type UserApi = "users" :> (ReqBody '[JSON] Object :> PostCreated '[JSON] (HashMap Text UUID) :<|> JwtAuth :> Get '[JSON] Int)
 
 userApi :: ServerT UserApi AppM
 userApi = registerUser :<|> getUser
@@ -31,8 +32,8 @@ registerUser user = do
     userId <- UserSvc.validateNewUser user >>= UserSvc.save
     pure (HashMap.singleton "userId" userId)
 
-getUser :: AppM Int
-getUser = do
+getUser :: Token -> AppM Int
+getUser token = do
     xs <- withTransactionMode defaultTransactionMode $ \conn ->
         runBeam conn $ do
             runSelectReturningList (select (all_ (btUser busTrackerDb)))

@@ -1,42 +1,60 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Bus.Web.App.Servant (waiApp) where
 
-import Bus.Exception (ApiException (..), ErrorType, etyInvalidRequestFormat, etyMessage, etyMessageCode, etyMissingResource, etyType, etyUnknownError)
+import Bus.Exception (
+    ApiException (..),
+    ErrorType,
+    NoSuchKeyException (NoSuchKeyException),
+    etyInvalidCredentials,
+    etyInvalidRequestFormat,
+    etyMessage,
+    etyMessageCode,
+    etyMissingResource,
+    etyType,
+    etyUnknownError,
+ )
 import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
+import Bus.Security.Jwt (Token (tokTokenType), TokenType (Access), verifyToken)
+import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
-import Bus.Web.App.Type (AppM (AppM), Config (cfgServer), Env (envConfig, envLoggingChan), Server (svrPort))
+import Bus.Web.App.Type (
+    AppM (AppM),
+    Config (cfgSecurity, cfgServer),
+    Env (envConfig, envKeyStore, envKeyStorePassword, envLoggingChan),
+    Security (secJwtKeyFriendlyName),
+    Server (svrPort),
+ )
 import Bus.Web.Auth.Api (AuthApi, authApi)
 import Bus.Web.User.Api (UserApi, userApi)
 import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
+import Control.Exception.Context (emptyExceptionContext)
 import Control.Monad.Catch (MonadThrow (throwM))
-import Control.Monad.Reader (MonadIO (liftIO), ReaderT (runReaderT))
+import Control.Monad.Reader (MonadIO (liftIO), MonadReader, ReaderT (runReaderT), asks)
+import Control.Monad.Time (MonadTime (currentTime, monotonicTime))
 import Data.Aeson (ToJSON (toEncoding, toJSON), Value, encode, genericToEncoding, genericToJSON)
 import Data.ByteString (ByteString)
 import Data.Foldable (for_)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
+import Data.Time (UTCTime, getCurrentTime)
+import GHC.Clock (getMonotonicTime)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
-import Network.HTTP.Types (Header, Status (statusCode, statusMessage), hContentType)
+import Network.HTTP.Types (Header, Status (statusCode, statusMessage), hContentType, hCookie, status401)
 import Network.URI (URIAuth (uriPort, uriRegName), nullURIAuth)
-import Network.Wai (Request)
+import Network.Wai (Request (requestHeaders))
 import Rerefined (unrefine)
 import Servant hiding (Header)
-import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
+import Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
+import Web.Cookie (parseCookies)
 
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 
 type Api = AuthApi :<|> UserApi
-
-type JwtAuth = AuthProtect "jwt"
-
-type instance AuthServerData JwtAuth = Text
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -51,6 +69,13 @@ instance ToJSON ProblemDetails where
     toJSON = genericToJSON (fieldPrefixRemovalOptions "pd")
     toEncoding = genericToEncoding (fieldPrefixRemovalOptions "pd")
 
+newtype MockMonadTime a = MockMonadTime (ReaderT (UTCTime, Double) (Either SomeException) a)
+    deriving (Functor, Applicative, Monad, MonadReader (UTCTime, Double), MonadThrow)
+
+instance MonadTime MockMonadTime where
+    currentTime = asks fst
+    monotonicTime = asks snd
+
 waiApp :: Env -> Application
 waiApp env = serveWithContext apiProxy (errorFormatters env :. authHandler env :. EmptyContext) server'
   where
@@ -59,14 +84,50 @@ waiApp env = serveWithContext apiProxy (errorFormatters env :. authHandler env :
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
-authContextProxy :: Proxy '[AuthHandler Request Text]
+authContextProxy :: Proxy '[AuthHandler Request Token]
 authContextProxy = Proxy
 
-authHandler :: Env -> AuthHandler Request Text
-authHandler env = mkAuthHandler f
+authHandler :: Env -> AuthHandler Request Token
+authHandler = mkAuthHandler . authenticate
+
+authenticate :: Env -> Request -> Handler Token
+authenticate env request = toHandler env $ do
+    jwt <- case findCookie "accessToken" (requestHeaders request) of
+        Just value -> pure value
+        Nothing -> throwM defaultException{apiErrorDescription = Just "No token present"}
+    keyPair <- getKeyPair
+    result <- runMockMonadTime (verifyToken keyPair jwt)
+
+    case result of
+        Left err -> do
+            logWarnEx ["JWT verification failed"] (ExceptionWithContext emptyExceptionContext err)
+            throwM defaultException{apiErrorDescription = Just "Token verification failed"}
+        Right token ->
+            if tokTokenType token == Access
+                then pure token
+                else throwM defaultException{apiErrorDescription = Just "Wrong token type"}
   where
-    f request = toHandler env $ do
-        pure "user foo"
+    findCookie name headers = lookup hCookie headers >>= lookup name . parseCookies
+    getKeyPair = do
+        let jwtName = Text.unpack (unrefine env.envConfig.cfgSecurity.secJwtKeyFriendlyName)
+            keyStore = env.envKeyStore
+            password = env.envKeyStorePassword
+
+        case getKeyByFriendlyName jwtName password keyStore of
+            Just keyPair -> pure keyPair
+            Nothing -> throwM (NoSuchKeyException jwtName)
+    defaultException =
+        ApiException
+            { apiHttpStatus = status401
+            , apiErrorType = etyInvalidCredentials
+            , apiErrorDescription = Nothing
+            , apiErrorDetails = Nothing
+            }
+
+runMockMonadTime :: (MonadIO m) => MockMonadTime a -> m (Either SomeException a)
+runMockMonadTime (MockMonadTime readerT) = do
+    time <- liftIO $ (,) <$> getCurrentTime <*> getMonotonicTime
+    pure (runReaderT readerT time)
 
 server :: ServerT Api AppM
 server = authApi :<|> userApi
