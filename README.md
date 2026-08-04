@@ -71,6 +71,5 @@ liquibase update
 - Add default config
 - Add log file rotation
 - Auth api
-    - `POST /auth/logout`
     - `POST /auth/refresh`
 - Bus api

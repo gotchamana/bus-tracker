@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Bus.Security.Jwt (
+    Tokens (..),
     Token (..),
     TokenType (..),
     signToken,
@@ -43,6 +44,11 @@ import Data.Typeable (Proxy (Proxy), typeRep)
 import GHC.Stack (HasCallStack)
 
 import Data.ByteString qualified as ByteString
+
+data Tokens = Tokens
+    { toksAccessToken :: Token
+    , toksRefreshToken :: Maybe Token
+    }
 
 data Token = Token
     { tokTokenType :: TokenType

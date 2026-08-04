@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Web.Auth.Service (Login, Authentication (..), AuthToken (..), validateLogin, signAuthToken) where
+module Bus.Web.Auth.Service (Login, Authentication (..), AuthToken (..), validateLogin, signAuthToken, invalidateRefreshToken) where
 
 import Bus.Database.Class (MonadDatabase)
 import Bus.Database.Entity (PrimaryKey (UserId), RefreshTokenT (..))
 import Bus.Exception (IllegalValueException (IllegalValueException), JwtException (JwtException), NoSuchValueException (NoSuchValueException))
-import Bus.Security.Jwt (Token (Token, tokClaimsSet), TokenType (Access, Refresh), signToken)
+import Bus.Security.Jwt (Token (Token, tokClaimsSet), TokenType (Access, Refresh), Tokens (Tokens, toksRefreshToken), signToken)
 import Bus.Util.Either (maybeToEither)
-import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
+import Bus.Util.MessageCode (errorValidationInvalidUserCredentials, errorValidationMissingRefreshToken)
 import Bus.Validation.Aeson (parseObject)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
 import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
@@ -25,7 +25,7 @@ import Data.Aeson.BetterErrors (asText, key, throwCustomError)
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
-import Data.Time.LocalTime (ZonedTime (zonedTimeToLocalTime), getCurrentTimeZone, getZonedTime, utcToLocalTime)
+import Data.Time.LocalTime (LocalTime, ZonedTime (zonedTimeToLocalTime), getCurrentTimeZone, getZonedTime, utcToLocalTime)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack (HasCallStack)
 import Rerefined (Refined, unrefine)
@@ -36,6 +36,7 @@ import Bus.Database.Repository.RefreshToken qualified as RefreshTokenRepo
 import Bus.Database.Repository.User qualified as UserRepo
 import Data.ByteString qualified as ByteString
 import Data.HashMap.Strict qualified as HashMap
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
@@ -142,12 +143,7 @@ saveRefreshToken account jwt = do
 
             pure (uuid, expTime)
 
-    (now, timeZone) <-
-        liftIO $
-            (,) . zonedTimeToLocalTime
-                <$> getZonedTime
-                <*> getCurrentTimeZone
-
+    (now, timeZone) <- liftIO $ (,) <$> getLocalTime <*> getCurrentTimeZone
     userId <-
         UserRepo.findIdByAccount account >>= \case
             Just userId -> pure userId
@@ -162,3 +158,23 @@ saveRefreshToken account jwt = do
             , rtkCreateTime = now
             , rtkUpdateTime = now
             }
+
+invalidateRefreshToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => Tokens -> m ()
+invalidateRefreshToken Tokens{toksRefreshToken} = do
+    refreshToken <- case toksRefreshToken of
+        Just token -> pure token
+        Nothing ->
+            throwM . requestValidationException Nothing . NonEmpty.singleton $
+                ValidationError
+                    { valField = Nothing
+                    , valMessage = "Missing refresh token"
+                    , valMessageCode = errorValidationMissingRefreshToken
+                    , valMessageArgs = HashMap.empty
+                    }
+
+    case refreshToken.tokClaimsSet ^. claimJti >>= UUID.fromText of
+        Just tokenId -> liftIO getLocalTime >>= RefreshTokenRepo.updateRevoked tokenId True
+        Nothing -> throwM (NoSuchValueException "No jti found in refresh token")
+
+getLocalTime :: IO LocalTime
+getLocalTime = zonedTimeToLocalTime <$> getZonedTime

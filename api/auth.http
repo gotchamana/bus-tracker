@@ -1,6 +1,8 @@
 @host = localhost
 @port = 8080
 @root =
+@accessToken = eyJhbGciOiJFZERTQSJ9.eyJleHAiOjEuNzg1ODA0NTMzNjQxMjU5MzkzZTksImlhdCI6MS43ODU4MDM5MzM2NDEyNTkzOTNlOSwiaXNzIjoiYnVzLXRyYWNrZXIiLCJuYmYiOjEuNzg1ODAzOTMzNjQxMjU5MzkzZTksInN1YiI6ImFkbWluIiwidHR5cCI6ImFjY2VzcyJ9.7tn4kJHa2viTqFT3QvoQvStSZSRGsm-TEi9BioiDtlguZSyu-Z8cNUYq7zqZM_hziUPRBoA_ntp0e8bJmH41Dg
+@refreshToken = eyJhbGciOiJFZERTQSJ9.eyJleHAiOjEuNzg1ODkwMzMzNjQxMjY5ODY5ZTksImlhdCI6MS43ODU4MDM5MzM2NDEyNjk4NjllOSwiaXNzIjoiYnVzLXRyYWNrZXIiLCJqdGkiOiJiMGUzZGRlNS0zZDBjLTQzMGMtODRmNy05NzJkNTI5YmU1NjIiLCJuYmYiOjEuNzg1ODAzOTMzNjQxMjY5ODY5ZTksInN1YiI6ImFkbWluIiwidHR5cCI6InJlZnJlc2gifQ.GJeiNFKHP0Rp3w5HTXOoXAkQl_ncBlFBnAEY2LpvIcNQn-qWxxEAhI4M8AjjKiLXKmAx7Dz02sJigWN-2DANAw
 
 ### Login
 
@@ -11,3 +13,8 @@ Content-Type: application/json
   "account": "admin",
   "password": "passwordpassword"
 }
+
+### Logout
+
+POST http://{{host}}:{{port}}{{root}}/auth/logout
+Cookie: accessToken={{accessToken}};refreshToken={{refreshToken}}

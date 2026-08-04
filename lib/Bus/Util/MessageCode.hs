@@ -30,6 +30,7 @@ module Bus.Util.MessageCode (
     -- ** Others
     errorValidationDuplicateUserAccount,
     errorValidationInvalidUserCredentials,
+    errorValidationMissingRefreshToken,
     errorValidationUnknownError,
 ) where
 
@@ -109,6 +110,10 @@ errorValidationDuplicateUserAccount = "error.validation.duplicate-user-account"
 -- | Wrong username or password
 errorValidationInvalidUserCredentials :: Text
 errorValidationInvalidUserCredentials = "error.validation.invalid-user-credentials"
+
+-- | No refresh token
+errorValidationMissingRefreshToken :: Text
+errorValidationMissingRefreshToken = "error.validation.missing-refresh-token"
 
 -- | General unknown validation error
 errorValidationUnknownError :: Text

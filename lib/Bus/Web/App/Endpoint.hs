@@ -3,9 +3,9 @@
 
 module Bus.Web.App.Endpoint (Api, server) where
 
-import Bus.Security.Jwt (Token)
+import Bus.Security.Jwt (Tokens)
 import Bus.Web.App.Type (AppM)
-import Bus.Web.Auth.Api (login)
+import Bus.Web.Auth.Api (login, logout)
 import Bus.Web.User.Api (getUser, registerUser)
 import Data.Aeson (Object)
 import Data.HashMap.Strict (HashMap)
@@ -19,7 +19,9 @@ type Api = AuthApi :<|> UserApi
 
 type AuthApi =
     "auth"
-        :> ("login" :> ReqBody '[JSON] Object :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent))
+        :> ( "login" :> ReqBody '[JSON] Object :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+                :<|> "logout" :> JwtAuth :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+           )
 
 type UserApi =
     "users"
@@ -31,13 +33,13 @@ type HSetCookie = Header "SetCookie" SetCookie
 
 type JwtAuth = AuthProtect "jwt"
 
-type instance AuthServerData JwtAuth = Token
+type instance AuthServerData JwtAuth = Tokens
 
 server :: ServerT Api AppM
 server = authApi :<|> userApi
 
 authApi :: ServerT AuthApi AppM
-authApi = login
+authApi = login :<|> logout
 
 userApi :: ServerT UserApi AppM
 userApi = registerUser :<|> getUser

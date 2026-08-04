@@ -1,8 +1,10 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Web.Auth.Api (login) where
+module Bus.Web.Auth.Api (login, logout) where
 
 import Bus.Exception (NoSuchKeyException (NoSuchKeyException))
+import Bus.Security.Jwt (Tokens)
 import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Web.App.Type (
     AppM,
@@ -13,7 +15,7 @@ import Bus.Web.App.Type (
  )
 import Bus.Web.Auth.Service (Authentication (Authentication))
 import Control.Monad.Catch (MonadThrow (throwM))
-import Control.Monad.Reader (MonadReader (ask))
+import Control.Monad.Reader (MonadReader (ask), asks)
 import Data.Aeson (Object)
 import Data.Function ((&))
 import Rerefined (unrefine)
@@ -23,7 +25,9 @@ import Web.Cookie (SetCookie (..), defaultSetCookie, sameSiteStrict)
 import Bus.Web.Auth.Service qualified as AuthSvc
 import Data.Text qualified as Text
 
-login :: Object -> AppM (Headers '[Header "SetCookie" SetCookie, Header "SetCookie" SetCookie] NoContent)
+type HSetCookie = Header "SetCookie" SetCookie
+
+login :: Object -> AppM (Headers '[HSetCookie, HSetCookie] NoContent)
 login object = do
     validLogin <- AuthSvc.validateLogin object
 
@@ -54,6 +58,36 @@ login object = do
                 , setCookieValue = auRefreshToken.atTokenValue
                 , setCookieHttpOnly = True
                 , setCookieMaxAge = Just (fromIntegral auRefreshToken.atExpirationSec)
+                , setCookieSecure = True
+                , setCookieSameSite = Just sameSiteStrict
+                }
+
+    pure $
+        NoContent
+            & addHeader accessCookie
+            & addHeader refreshCookie
+
+logout :: Tokens -> AppM (Headers '[HSetCookie, HSetCookie] NoContent)
+logout tokens = do
+    AuthSvc.invalidateRefreshToken tokens
+
+    cookieNames <- asks envCookieNames
+
+    let accessCookie =
+            defaultSetCookie
+                { setCookieName = cookieNames.cknAccessToken
+                , setCookieValue = ""
+                , setCookieHttpOnly = True
+                , setCookieMaxAge = Just 0
+                , setCookieSecure = True
+                , setCookieSameSite = Just sameSiteStrict
+                }
+        refreshCookie =
+            defaultSetCookie
+                { setCookieName = cookieNames.cknRefreshToken
+                , setCookieValue = ""
+                , setCookieHttpOnly = True
+                , setCookieMaxAge = Just 0
                 , setCookieSecure = True
                 , setCookieSameSite = Just sameSiteStrict
                 }

@@ -17,14 +17,14 @@ import Bus.Exception (
     etyUnknownError,
  )
 import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
-import Bus.Security.Jwt (Token (tokTokenType), TokenType (Access), verifyToken)
+import Bus.Security.Jwt (Token (tokTokenType), TokenType (Access, Refresh), Tokens (Tokens, toksAccessToken, toksRefreshToken), verifyToken)
 import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
 import Bus.Web.App.Endpoint (Api, server)
 import Bus.Web.App.Type (
     AppM (AppM),
     Config (cfgSecurity, cfgServer),
-    CookieNames (cknAccessToken),
+    CookieNames (cknAccessToken, cknRefreshToken),
     Env (envConfig, envCookieNames, envKeyStore, envKeyStorePassword, envLoggingChan),
     Security (secJwtKeyFriendlyName),
     Server (svrPort),
@@ -82,30 +82,47 @@ waiApp env = serveWithContext apiProxy (errorFormatters env :. authHandler env :
 apiProxy :: Proxy Api
 apiProxy = Proxy
 
-authContextProxy :: Proxy '[AuthHandler Request Token]
+authContextProxy :: Proxy '[AuthHandler Request Tokens]
 authContextProxy = Proxy
 
-authHandler :: Env -> AuthHandler Request Token
+authHandler :: Env -> AuthHandler Request Tokens
 authHandler = mkAuthHandler . authenticate
 
-authenticate :: Env -> Request -> Handler Token
+authenticate :: Env -> Request -> Handler Tokens
 authenticate env request = toHandler env $ do
-    jwt <- case findCookie env.envCookieNames.cknAccessToken (requestHeaders request) of
-        Just value -> pure value
+    (rawAccess, rawRefresh) <- case extractTokens of
+        Just tokens -> pure tokens
         Nothing -> throwM defaultException{apiErrorDescription = Just "No token present"}
     keyPair <- getKeyPair
-    result <- runMockMonadTime (verifyToken keyPair jwt)
+    result <-
+        runMockMonadTime $
+            (,)
+                <$> verifyToken keyPair rawAccess
+                <*> traverse (verifyToken keyPair) rawRefresh
 
     case result of
         Left err -> do
             logWarnEx ["JWT verification failed"] (ExceptionWithContext emptyExceptionContext err)
             throwM defaultException{apiErrorDescription = Just "Token verification failed"}
-        Right token ->
-            if tokTokenType token == Access
-                then pure token
-                else throwM defaultException{apiErrorDescription = Just "Wrong token type"}
+        Right (access, refresh) ->
+            case (tokTokenType access, tokTokenType <$> refresh) of
+                (Refresh, _) -> throwM defaultException{apiErrorDescription = Just "Wrong token type: refresh"}
+                (_, Just Access) -> throwM defaultException{apiErrorDescription = Just "Wrong token type: access"}
+                _ ->
+                    pure
+                        Tokens
+                            { toksAccessToken = access
+                            , toksRefreshToken = refresh
+                            }
   where
-    findCookie name headers = lookup hCookie headers >>= lookup name . parseCookies
+    extractTokens = do
+        cookies <- parseCookies <$> lookup hCookie (requestHeaders request)
+
+        let cookieNames = env.envCookieNames
+            access = lookup cookieNames.cknAccessToken cookies
+            refresh = lookup cookieNames.cknRefreshToken cookies
+
+        (,refresh) <$> access
     getKeyPair = do
         let jwtName = Text.unpack (unrefine env.envConfig.cfgSecurity.secJwtKeyFriendlyName)
             keyStore = env.envKeyStore
