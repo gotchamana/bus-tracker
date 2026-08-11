@@ -9,3 +9,25 @@
 - group:
     name: generalise
     enabled: true
+
+- modules:
+    - name: Bus.Database.**
+      within:
+        - Bus.Database.**
+        - Bus.Web.*.Service
+        - Bus.Web.App.Type
+    - name: Bus.Main
+      within:
+        - Main
+    - name: Bus.Validation.**
+      within:
+        - Bus.Validation.**
+        - Bus.Web.*.Service
+        - Bus.Web.App.Type
+    - name: Bus.Web.*.Api
+      within:
+        - Bus.Web.App.Endpoint
+    - name: Bus.Web.*.Service
+      within:
+        - Bus.Web.*.Api
+        - Bus.Web.*.Service

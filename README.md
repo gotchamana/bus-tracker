@@ -62,6 +62,12 @@ liquibase update-sql
 liquibase update
 ```
 
+### Module dependency rules
+
+- `Bus.Logger` must not import any other `Bus` modules
+- Modules under `Bus.Database` must not import `Bus` modules outside `Bus.Database`
+- Modules under `Bus.Util` must not import `Bus` modules outside `Bus.Util`
+
 ## TODO
 
 - RBAC authorization
