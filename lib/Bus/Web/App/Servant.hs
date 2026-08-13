@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Bus.Web.App.Servant (waiApp) where
 
@@ -17,10 +19,14 @@ import Bus.Exception (
     etyUnknownError,
  )
 import Bus.Logger (logErrorEx, logWarnEx, runTChanLoggingT)
-import Bus.Security.Jwt (Token (tokTokenType), TokenType (Access, Refresh), Tokens (Tokens, toksAccessToken, toksRefreshToken), verifyToken)
+import Bus.Security.Jwt (
+    Token (tokTokenType),
+    TokenType (Access, Refresh),
+    Tokens (Tokens, toksAccessToken, toksRefreshToken),
+    verifyToken,
+ )
 import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
-import Bus.Web.App.Endpoint (Api, server)
 import Bus.Web.App.Type (
     AppM (AppM),
     Config (cfgSecurity, cfgServer),
@@ -29,30 +35,61 @@ import Bus.Web.App.Type (
     Security (secJwtKeyFriendlyName),
     Server (svrPort),
  )
-import Control.Exception (Exception (fromException), ExceptionWithContext (ExceptionWithContext), SomeAsyncException, SomeException, try)
+import Bus.Web.Auth.Api (login, logout)
+import Bus.Web.User.Api (getUser, registerUser)
+import Control.Exception (
+    Exception (fromException),
+    ExceptionWithContext (ExceptionWithContext),
+    SomeAsyncException,
+    SomeException,
+    try,
+ )
 import Control.Exception.Context (emptyExceptionContext)
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadIO (liftIO), MonadReader, ReaderT (runReaderT), asks)
 import Control.Monad.Time (MonadTime (currentTime, monotonicTime))
-import Data.Aeson (ToJSON (toEncoding, toJSON), Value, encode, genericToEncoding, genericToJSON)
+import Data.Aeson (Object, ToJSON (toEncoding, toJSON), Value, encode, genericToEncoding, genericToJSON)
 import Data.ByteString (ByteString)
 import Data.Foldable (for_)
+import Data.HashMap.Strict (HashMap)
 import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import Data.Time (UTCTime, getCurrentTime)
+import Data.UUID (UUID)
 import GHC.Clock (getMonotonicTime)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
-import Network.HTTP.Types (Header, Status (statusCode, statusMessage), hContentType, hCookie, status401)
+import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType, hCookie, status401)
 import Network.URI (URIAuth (uriPort, uriRegName), nullURIAuth)
 import Network.Wai (Request (requestHeaders))
 import Rerefined (unrefine)
-import Servant hiding (Header)
-import Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
-import Web.Cookie (parseCookies)
+import Servant
+import Servant.Server.Experimental.Auth (AuthHandler, AuthServerData, mkAuthHandler)
+import Web.Cookie (SetCookie, parseCookies)
 
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Network.HTTP.Types qualified as Http
+
+type Api = AuthApi :<|> UserApi
+
+type AuthApi =
+    "auth"
+        :> ( "login" :> ReqBody '[JSON] Object :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+                :<|> "logout" :> JwtAuth :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+           )
+
+type UserApi =
+    "users"
+        :> ( ReqBody '[JSON] Object :> PostCreated '[JSON] (HashMap Text UUID)
+                :<|> JwtAuth :> Get '[JSON] Int
+           )
+
+type HSetCookie = Header "SetCookie" SetCookie
+
+type JwtAuth = AuthProtect "jwt"
+
+type instance AuthServerData JwtAuth = Tokens
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -77,16 +114,19 @@ instance MonadTime MockMonadTime where
 waiApp :: Env -> Application
 waiApp env = serveWithContext apiProxy (errorFormatters env :. authHandler env :. EmptyContext) server'
   where
-    server' = hoistServerWithContext apiProxy authContextProxy (toHandler env) server
+    apiProxy = Proxy @Api
+    contextProxy = Proxy @'[AuthHandler Request Tokens]
+    server' = hoistServerWithContext apiProxy contextProxy (toHandler env) server
+    authHandler = mkAuthHandler . authenticate
 
-apiProxy :: Proxy Api
-apiProxy = Proxy
+server :: ServerT Api AppM
+server = authApi :<|> userApi
 
-authContextProxy :: Proxy '[AuthHandler Request Tokens]
-authContextProxy = Proxy
+authApi :: ServerT AuthApi AppM
+authApi = login :<|> logout
 
-authHandler :: Env -> AuthHandler Request Tokens
-authHandler = mkAuthHandler . authenticate
+userApi :: ServerT UserApi AppM
+userApi = registerUser :<|> getUser
 
 authenticate' :: TokenType -> Env -> Request -> Handler Token
 authenticate' tokenType env request = toHandler env $ do
@@ -282,7 +322,7 @@ problemDetails secure port errorType errorDescription errorDetails =
                 }
      in details
 
-contentTypeProbleamJson :: Header
+contentTypeProbleamJson :: Http.Header
 contentTypeProbleamJson = (hContentType, "application/problem+json")
 
 byteStringToString :: (HasCallStack, MonadThrow m) => ByteString -> m String

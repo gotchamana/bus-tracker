@@ -26,7 +26,7 @@
         - Bus.Web.App.Type
     - name: Bus.Web.*.Api
       within:
-        - Bus.Web.App.Endpoint
+        - Bus.Web.App.Servant
     - name: Bus.Web.*.Service
       within:
         - Bus.Web.*.Api
