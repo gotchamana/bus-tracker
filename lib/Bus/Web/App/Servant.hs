@@ -88,6 +88,50 @@ authContextProxy = Proxy
 authHandler :: Env -> AuthHandler Request Tokens
 authHandler = mkAuthHandler . authenticate
 
+authenticate' :: TokenType -> Env -> Request -> Handler Token
+authenticate' tokenType env request = toHandler env $ do
+    rawToken <- case extractToken of
+        Just token -> pure token
+        Nothing -> throwM defaultException{apiErrorDescription = Just "No token present"}
+
+    keyPair <- getKeyPair
+    result <- runMockMonadTime (verifyToken keyPair rawToken)
+
+    case result of
+        Left err -> do
+            logWarnEx ["JWT verification failed"] (ExceptionWithContext emptyExceptionContext err)
+            throwM defaultException{apiErrorDescription = Just "Token verification failed"}
+        Right token ->
+            if tokTokenType token == tokenType
+                then pure token
+                else throwM defaultException{apiErrorDescription = Just "Wrong token type"}
+  where
+    extractToken = do
+        cookies <- parseCookies <$> lookup hCookie (requestHeaders request)
+
+        let cookieNames = env.envCookieNames
+            access = lookup cookieNames.cknAccessToken cookies
+            refresh = lookup cookieNames.cknRefreshToken cookies
+
+        case tokenType of
+            Access -> access
+            Refresh -> refresh
+    getKeyPair = do
+        let jwtName = Text.unpack (unrefine env.envConfig.cfgSecurity.secJwtKeyFriendlyName)
+            keyStore = env.envKeyStore
+            password = env.envKeyStorePassword
+
+        case getKeyByFriendlyName jwtName password keyStore of
+            Just keyPair -> pure keyPair
+            Nothing -> throwM (NoSuchKeyException jwtName)
+    defaultException =
+        ApiException
+            { apiHttpStatus = status401
+            , apiErrorType = etyInvalidCredentials
+            , apiErrorDescription = Nothing
+            , apiErrorDetails = Nothing
+            }
+
 authenticate :: Env -> Request -> Handler Tokens
 authenticate env request = toHandler env $ do
     (rawAccess, rawRefresh) <- case extractTokens of
