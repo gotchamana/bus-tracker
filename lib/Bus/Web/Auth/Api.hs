@@ -40,7 +40,7 @@ login object = do
 
     Authentication{auAccessToken, auRefreshToken} <-
         case getKeyByFriendlyName jwtName password keyStore of
-            Just keyPair -> AuthSvc.signAuthToken keyPair validLogin
+            Just keyPair -> AuthSvc.signAuthTokenByLogin keyPair validLogin
             Nothing -> throwM (NoSuchKeyException jwtName)
 
     let accessCookie =

@@ -1,7 +1,14 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Web.Auth.Service (Login, Authentication (..), AuthToken (..), validateLogin, signAuthToken, invalidateRefreshToken) where
+module Bus.Web.Auth.Service (
+    Login,
+    Authentication (..),
+    AuthToken (..),
+    validateLogin,
+    signAuthTokenByLogin,
+    invalidateRefreshToken,
+) where
 
 import Bus.Database.Class (MonadDatabase)
 import Bus.Database.Entity (PrimaryKey (UserId), RefreshTokenT (..))
@@ -92,8 +99,8 @@ validateLogin object = do
             then pure login
             else liftEither (Left (err :| []))
 
-signAuthToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => KeyPair -> Login -> m Authentication
-signAuthToken keyPair login = do
+signAuthTokenByLogin :: (HasCallStack, MonadDatabase m, MonadThrow m) => KeyPair -> Login -> m Authentication
+signAuthTokenByLogin keyPair login = do
     let account = unrefine login.lgAccount
         accessExp = 10 * 60 -- 10 mins
         refreshExp = 24 * 60 * 60 -- 1 day
