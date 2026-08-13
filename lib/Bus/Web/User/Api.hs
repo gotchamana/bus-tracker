@@ -5,7 +5,7 @@ module Bus.Web.User.Api (registerUser, getUser) where
 import Bus.Database.Class (MonadDatabase (runBeam, withTransactionMode))
 import Bus.Database.Entity (BusTrackerDb (btUser), busTrackerDb)
 import Bus.Logger (logDebug')
-import Bus.Security.Jwt (Tokens)
+import Bus.Security.Jwt (Token)
 import Bus.Web.App.Type (AppM)
 import Data.Aeson (Object)
 import Data.HashMap.Strict (HashMap)
@@ -26,7 +26,7 @@ registerUser user = do
     userId <- UserSvc.validateNewUser user >>= UserSvc.save
     pure (HashMap.singleton "userId" userId)
 
-getUser :: Tokens -> AppM Int
+getUser :: Token -> AppM Int
 getUser _ = do
     xs <- withTransactionMode defaultTransactionMode $ \conn ->
         runBeam conn $ do

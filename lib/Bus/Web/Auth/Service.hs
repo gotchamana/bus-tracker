@@ -6,9 +6,9 @@ module Bus.Web.Auth.Service (Login, Authentication (..), AuthToken (..), validat
 import Bus.Database.Class (MonadDatabase)
 import Bus.Database.Entity (PrimaryKey (UserId), RefreshTokenT (..))
 import Bus.Exception (IllegalValueException (IllegalValueException), JwtException (JwtException), NoSuchValueException (NoSuchValueException))
-import Bus.Security.Jwt (Token (Token, tokClaimsSet), TokenType (Access, Refresh), Tokens (Tokens, toksRefreshToken), signToken)
+import Bus.Security.Jwt (Token (Token, tokClaimsSet), TokenType (Access, Refresh), signToken)
 import Bus.Util.Either (maybeToEither)
-import Bus.Util.MessageCode (errorValidationInvalidUserCredentials, errorValidationMissingRefreshToken)
+import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
 import Bus.Validation.Aeson (parseObject)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
 import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
@@ -36,7 +36,6 @@ import Bus.Database.Repository.RefreshToken qualified as RefreshTokenRepo
 import Bus.Database.Repository.User qualified as UserRepo
 import Data.ByteString qualified as ByteString
 import Data.HashMap.Strict qualified as HashMap
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
@@ -159,19 +158,8 @@ saveRefreshToken account jwt = do
             , rtkUpdateTime = now
             }
 
-invalidateRefreshToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => Tokens -> m ()
-invalidateRefreshToken Tokens{toksRefreshToken} = do
-    refreshToken <- case toksRefreshToken of
-        Just token -> pure token
-        Nothing ->
-            throwM . requestValidationException Nothing . NonEmpty.singleton $
-                ValidationError
-                    { valField = Nothing
-                    , valMessage = "Missing refresh token"
-                    , valMessageCode = errorValidationMissingRefreshToken
-                    , valMessageArgs = HashMap.empty
-                    }
-
+invalidateRefreshToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => Token -> m ()
+invalidateRefreshToken refreshToken = do
     case refreshToken.tokClaimsSet ^. claimJti >>= UUID.fromText of
         Just tokenId -> liftIO getLocalTime >>= RefreshTokenRepo.updateRevoked tokenId True
         Nothing -> throwM (NoSuchValueException "No jti found in refresh token")

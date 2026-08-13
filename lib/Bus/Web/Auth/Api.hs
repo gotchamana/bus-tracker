@@ -4,7 +4,7 @@
 module Bus.Web.Auth.Api (login, logout) where
 
 import Bus.Exception (NoSuchKeyException (NoSuchKeyException))
-import Bus.Security.Jwt (Tokens)
+import Bus.Security.Jwt (Token)
 import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Web.App.Type (
     AppM,
@@ -67,9 +67,9 @@ login object = do
             & addHeader accessCookie
             & addHeader refreshCookie
 
-logout :: Tokens -> AppM (Headers '[HSetCookie, HSetCookie] NoContent)
-logout tokens = do
-    AuthSvc.invalidateRefreshToken tokens
+logout :: Token -> Token -> AppM (Headers '[HSetCookie, HSetCookie] NoContent)
+logout _accessToken refreshToken = do
+    AuthSvc.invalidateRefreshToken refreshToken
 
     cookieNames <- asks envCookieNames
 
