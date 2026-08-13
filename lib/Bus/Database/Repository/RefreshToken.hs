@@ -13,9 +13,9 @@ save token = withTransactionMode defaultTransactionMode $ \conn -> do
 
 updateRevoked :: (MonadDatabase m) => UUID -> Bool -> LocalTime -> m ()
 updateRevoked tokenId revoked updateTime = withTransactionMode defaultTransactionMode $ \conn -> do
-    runBeam conn $
-        runUpdate $
-            update
-                (btRefreshToken busTrackerDb)
-                (\r -> (rtkRevoked r <-. val_ revoked) <> (rtkUpdateTime r <-. val_ updateTime))
-                (\r -> rtkId r ==. val_ tokenId &&. rtkRevoked r /=. val_ revoked)
+    runBeam conn
+        . runUpdate
+        $ update
+            (btRefreshToken busTrackerDb)
+            (\r -> (rtkRevoked r <-. val_ revoked) <> (rtkUpdateTime r <-. val_ updateTime))
+            (\r -> rtkId r ==. val_ tokenId &&. rtkRevoked r /=. val_ revoked)
