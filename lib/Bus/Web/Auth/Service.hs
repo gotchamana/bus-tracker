@@ -100,9 +100,11 @@ validateLogin object = do
             else liftEither (Left (err :| []))
 
 signAuthTokenByLogin :: (HasCallStack, MonadDatabase m, MonadThrow m) => KeyPair -> Login -> m Authentication
-signAuthTokenByLogin keyPair login = do
-    let account = unrefine login.lgAccount
-        accessExp = 10 * 60 -- 10 mins
+signAuthTokenByLogin keyPair login = signAuthToken keyPair (unrefine login.lgAccount)
+
+signAuthToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => KeyPair -> Text -> m Authentication
+signAuthToken keyPair account = do
+    let accessExp = 10 * 60 -- 10 mins
         refreshExp = 24 * 60 * 60 -- 1 day
     (signedAccessJwt, signedRefreshJwt) <-
         liftIO $ do
