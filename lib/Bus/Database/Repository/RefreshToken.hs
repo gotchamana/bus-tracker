@@ -16,6 +16,8 @@ import Database.Beam (
     insert,
     insertValues,
     isFalse_,
+    isNotFalse_,
+    isNotTrue_,
     isTrue_,
     limit_,
     runInsert,
@@ -25,7 +27,6 @@ import Database.Beam (
     sqlBool_,
     update,
     (&&.),
-    (/=.),
     (<-.),
     (==.),
  )
@@ -43,7 +44,7 @@ updateRevoked tokenId revoked updateTime = withTransactionMode defaultTransactio
         $ update
             (btRefreshToken busTrackerDb)
             (\r -> (rtkRevoked r <-. val_ revoked) <> (rtkUpdateTime r <-. val_ updateTime))
-            (\r -> rtkId r ==. val_ tokenId &&. rtkRevoked r /=. val_ revoked)
+            (\r -> rtkId r ==. val_ tokenId &&. isNotBool_ revoked (sqlBool_ (rtkRevoked r)))
 
 existsByIdAndRevoked :: (MonadDatabase m) => UUID -> Bool -> m Bool
 existsByIdAndRevoked tokenId revoked = withTransactionMode defaultTransactionMode $ \conn ->
@@ -60,3 +61,7 @@ existsByIdAndRevoked tokenId revoked = withTransactionMode defaultTransactionMod
 isBool_ :: (BeamSqlBackend be) => Bool -> QGenExpr context be s SqlBool -> QGenExpr context be s Bool
 isBool_ True = isTrue_
 isBool_ False = isFalse_
+
+isNotBool_ :: (BeamSqlBackend be) => Bool -> QGenExpr context be s SqlBool -> QGenExpr context be s Bool
+isNotBool_ True = isNotTrue_
+isNotBool_ False = isNotFalse_
