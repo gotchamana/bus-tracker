@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Bus.Web.Auth.Api (login, logout, refresh) where
 
@@ -13,10 +14,11 @@ import Bus.Web.App.Type (
     Env (envConfig, envCookieNames, envKeyStore, envKeyStorePassword),
     Security (secJwtKeyFriendlyName),
  )
-import Bus.Web.Auth.Service (Authentication (Authentication))
+import Bus.Web.Auth.Service (AuthToken (..), Authentication (Authentication))
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Reader (MonadReader (ask), asks)
 import Data.Aeson (Object)
+import Data.ByteString (ByteString)
 import Data.Function ((&))
 import Rerefined (unrefine)
 import Servant
@@ -43,24 +45,8 @@ login object = do
             Just keyPair -> AuthSvc.signAuthTokenByLogin keyPair validLogin
             Nothing -> throwM (NoSuchKeyException jwtName)
 
-    let accessCookie =
-            defaultSetCookie
-                { setCookieName = cookieNames.cknAccessToken
-                , setCookieValue = auAccessToken.atTokenValue
-                , setCookieHttpOnly = True
-                , setCookieMaxAge = Just (fromIntegral auAccessToken.atExpirationSec)
-                , setCookieSecure = True
-                , setCookieSameSite = Just sameSiteStrict
-                }
-        refreshCookie =
-            defaultSetCookie
-                { setCookieName = cookieNames.cknRefreshToken
-                , setCookieValue = auRefreshToken.atTokenValue
-                , setCookieHttpOnly = True
-                , setCookieMaxAge = Just (fromIntegral auRefreshToken.atExpirationSec)
-                , setCookieSecure = True
-                , setCookieSameSite = Just sameSiteStrict
-                }
+    let accessCookie = tokenCookie cookieNames.cknAccessToken auAccessToken
+        refreshCookie = tokenCookie cookieNames.cknRefreshToken auRefreshToken
 
     pure $
         NoContent
@@ -111,26 +97,21 @@ refresh refreshToken = do
             Just keyPair -> AuthSvc.signAuthTokenByRefreshToken keyPair refreshToken
             Nothing -> throwM (NoSuchKeyException jwtName)
 
-    let accessCookie =
-            defaultSetCookie
-                { setCookieName = cookieNames.cknAccessToken
-                , setCookieValue = auAccessToken.atTokenValue
-                , setCookieHttpOnly = True
-                , setCookieMaxAge = Just (fromIntegral auAccessToken.atExpirationSec)
-                , setCookieSecure = True
-                , setCookieSameSite = Just sameSiteStrict
-                }
-        refreshCookie =
-            defaultSetCookie
-                { setCookieName = cookieNames.cknRefreshToken
-                , setCookieValue = auRefreshToken.atTokenValue
-                , setCookieHttpOnly = True
-                , setCookieMaxAge = Just (fromIntegral auRefreshToken.atExpirationSec)
-                , setCookieSecure = True
-                , setCookieSameSite = Just sameSiteStrict
-                }
+    let accessCookie = tokenCookie cookieNames.cknAccessToken auAccessToken
+        refreshCookie = tokenCookie cookieNames.cknRefreshToken auRefreshToken
 
     pure $
         NoContent
             & addHeader accessCookie
             & addHeader refreshCookie
+
+tokenCookie :: ByteString -> AuthToken -> SetCookie
+tokenCookie name AuthToken{..} =
+    defaultSetCookie
+        { setCookieName = name
+        , setCookieValue = atTokenValue
+        , setCookieHttpOnly = True
+        , setCookieMaxAge = Just (fromIntegral atExpirationSec)
+        , setCookieSecure = True
+        , setCookieSameSite = Just sameSiteStrict
+        }
