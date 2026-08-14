@@ -2,7 +2,7 @@
 @port = 8080
 @root =
 @accessToken = eyJhbGciOiJFZERTQSJ9.eyJleHAiOjEuNzg2NjA5MTgxNjc3MTM0MTc4ZTksImlhdCI6MS43ODY2MDg1ODE2NzcxMzQxNzhlOSwiaXNzIjoiYnVzLXRyYWNrZXIiLCJuYmYiOjEuNzg2NjA4NTgxNjc3MTM0MTc4ZTksInN1YiI6ImFkbWluIiwidHR5cCI6ImFjY2VzcyJ9.V3UqIzpB8NwO682WyN-yiKsrvig2avK0gBNCgolmCx5ZAn38X3sX9gKwSFpmAcQkypOeZzFSspF2T9X5qXNHDQ
-@refreshToken = eyJhbGciOiJFZERTQSJ9.eyJleHAiOjEuNzg2NjkyNzA4MTYxMDU4NjM0ZTksImlhdCI6MS43ODY2MDYzMDgxNjEwNTg2MzRlOSwiaXNzIjoiYnVzLXRyYWNrZXIiLCJqdGkiOiJlMWQyZTZjYS03MGNjLTRkMjMtYTY0Mi0zYmQ5ZTQxODZlZmUiLCJuYmYiOjEuNzg2NjA2MzA4MTYxMDU4NjM0ZTksInN1YiI6ImFkbWluIiwidHR5cCI6InJlZnJlc2gifQ.1Kr8QgkukAuDlPgSUhAnJ5HTGASRbEsbHiWgCAAgqg1unIGH1jNI0G_1f1kKzGEf78PoRNYK3G7YLQfPq8-pDA
+@refreshToken = eyJhbGciOiJFZERTQSJ9.eyJleHAiOjEuNzg2NzcyMzM2NTY3Nzg4NTYyZTksImlhdCI6MS43ODY2ODU5MzY1Njc3ODg1NjJlOSwiaXNzIjoiYnVzLXRyYWNrZXIiLCJqdGkiOiI1ZWFmYzdlOS0wN2IwLTQzZWYtOWY2Zi00MGY5NDY5MzMwZDIiLCJuYmYiOjEuNzg2Njg1OTM2NTY3Nzg4NTYyZTksInN1YiI6ImFkbWluIiwidHR5cCI6InJlZnJlc2gifQ.sWcAgfumVBzVFu5dV4ESDQeC1_vKxx9mI-XMwYr6cBXCunzIsWrds8ubD2j7fxPg1Pb0s3W1Qx2oAhvWIB4RAQ
 
 ### Login
 
@@ -18,3 +18,8 @@ Content-Type: application/json
 
 POST http://{{host}}:{{port}}{{root}}/auth/logout
 Cookie: accessToken={{accessToken}};refreshToken={{refreshToken}}
+
+### Refresh
+
+POST http://{{host}}:{{port}}{{root}}/auth/refresh
+Cookie: refreshToken={{refreshToken}}

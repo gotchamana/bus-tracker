@@ -8,6 +8,7 @@ module Bus.Web.Auth.Service (
     validateLogin,
     signAuthTokenByLogin,
     invalidateRefreshToken,
+    signAuthTokenByRefreshToken,
 ) where
 
 import Bus.Database.Class (MonadDatabase)
@@ -15,16 +16,16 @@ import Bus.Database.Entity (PrimaryKey (UserId), RefreshTokenT (..))
 import Bus.Exception (IllegalValueException (IllegalValueException), JwtException (JwtException), NoSuchValueException (NoSuchValueException))
 import Bus.Security.Jwt (Token (Token, tokClaimsSet), TokenType (Access, Refresh), signToken)
 import Bus.Util.Either (maybeToEither)
-import Bus.Util.MessageCode (errorValidationInvalidUserCredentials)
+import Bus.Util.MessageCode (errorValidationInvalidUserCredentials, errorValidationRevokedRefreshToken)
 import Bus.Validation.Aeson (parseObject)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)
 import Bus.Validation.Rerefined (NotEmpty, Trimmed, refineField)
-import Control.Lens ((^.))
+import Control.Lens ((^.), (^?))
 import Control.Monad.Catch (MonadThrow (throwM))
 import Control.Monad.Except (liftEither, runExceptT)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans (MonadTrans (lift))
-import Crypto.JWT (HasClaimsSet (claimExp, claimJti), NumericDate (NumericDate), SignedJWT, encodeCompact, unsafeGetJWTPayload)
+import Crypto.JWT (HasClaimsSet (claimExp, claimJti, claimSub), NumericDate (NumericDate), SignedJWT, encodeCompact, string, unsafeGetJWTPayload)
 import Crypto.KDF.BCrypt (validatePassword)
 import Crypto.Store.PKCS8 (KeyPair)
 import Data.Aeson (Object)
@@ -33,6 +34,7 @@ import Data.ByteString (ByteString)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Text (Text)
 import Data.Time.LocalTime (LocalTime, ZonedTime (zonedTimeToLocalTime), getCurrentTimeZone, getZonedTime, utcToLocalTime)
+import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 import GHC.Stack (HasCallStack)
 import Rerefined (Refined, unrefine)
@@ -43,6 +45,7 @@ import Bus.Database.Repository.RefreshToken qualified as RefreshTokenRepo
 import Bus.Database.Repository.User qualified as UserRepo
 import Data.ByteString qualified as ByteString
 import Data.HashMap.Strict qualified as HashMap
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.UUID qualified as UUID
@@ -169,9 +172,37 @@ saveRefreshToken account jwt = do
 
 invalidateRefreshToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => Token -> m ()
 invalidateRefreshToken refreshToken = do
-    case refreshToken.tokClaimsSet ^. claimJti >>= UUID.fromText of
-        Just tokenId -> liftIO getLocalTime >>= RefreshTokenRepo.updateRevoked tokenId True
-        Nothing -> throwM (NoSuchValueException "No jti found in refresh token")
+    tokenId <- getTokenId refreshToken
+    time <- liftIO getLocalTime
+    RefreshTokenRepo.updateRevoked tokenId True time
+
+getTokenId :: (HasCallStack, MonadThrow m) => Token -> m UUID
+getTokenId token =
+    case token.tokClaimsSet ^. claimJti >>= UUID.fromText of
+        Just tokenId -> pure tokenId
+        Nothing -> throwM (NoSuchValueException "No jti found in token")
+
+signAuthTokenByRefreshToken :: (HasCallStack, MonadDatabase m, MonadThrow m) => KeyPair -> Token -> m Authentication
+signAuthTokenByRefreshToken keyPair refreshToken = do
+    tokenId <- getTokenId refreshToken
+    account <- case refreshToken.tokClaimsSet ^. claimSub >>= (^? string) of
+        Just account -> pure account
+        Nothing -> throwM (NoSuchValueException "No sub found in token")
+    exists <- RefreshTokenRepo.existsByIdAndRevoked tokenId False
+
+    if exists
+        then do
+            invalidateRefreshToken refreshToken
+            signAuthToken keyPair account
+        else
+            let revokedError =
+                    ValidationError
+                        { valField = Nothing
+                        , valMessage = "Refresh token was revoked"
+                        , valMessageCode = errorValidationRevokedRefreshToken
+                        , valMessageArgs = HashMap.empty
+                        }
+             in throwM (requestValidationException Nothing (NonEmpty.singleton revokedError))
 
 getLocalTime :: IO LocalTime
 getLocalTime = zonedTimeToLocalTime <$> getZonedTime

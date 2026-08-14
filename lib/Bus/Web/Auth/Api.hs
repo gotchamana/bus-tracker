@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bus.Web.Auth.Api (login, logout) where
+module Bus.Web.Auth.Api (login, logout, refresh) where
 
 import Bus.Exception (NoSuchKeyException (NoSuchKeyException))
 import Bus.Security.Jwt (Token)
@@ -88,6 +88,44 @@ logout _accessToken refreshToken = do
                 , setCookieValue = ""
                 , setCookieHttpOnly = True
                 , setCookieMaxAge = Just 0
+                , setCookieSecure = True
+                , setCookieSameSite = Just sameSiteStrict
+                }
+
+    pure $
+        NoContent
+            & addHeader accessCookie
+            & addHeader refreshCookie
+
+refresh :: Token -> AppM (Headers '[HSetCookie, HSetCookie] NoContent)
+refresh refreshToken = do
+    env <- ask
+
+    let jwtName = Text.unpack (unrefine env.envConfig.cfgSecurity.secJwtKeyFriendlyName)
+        keyStore = env.envKeyStore
+        password = env.envKeyStorePassword
+        cookieNames = env.envCookieNames
+
+    Authentication{auAccessToken, auRefreshToken} <-
+        case getKeyByFriendlyName jwtName password keyStore of
+            Just keyPair -> AuthSvc.signAuthTokenByRefreshToken keyPair refreshToken
+            Nothing -> throwM (NoSuchKeyException jwtName)
+
+    let accessCookie =
+            defaultSetCookie
+                { setCookieName = cookieNames.cknAccessToken
+                , setCookieValue = auAccessToken.atTokenValue
+                , setCookieHttpOnly = True
+                , setCookieMaxAge = Just (fromIntegral auAccessToken.atExpirationSec)
+                , setCookieSecure = True
+                , setCookieSameSite = Just sameSiteStrict
+                }
+        refreshCookie =
+            defaultSetCookie
+                { setCookieName = cookieNames.cknRefreshToken
+                , setCookieValue = auRefreshToken.atTokenValue
+                , setCookieHttpOnly = True
+                , setCookieMaxAge = Just (fromIntegral auRefreshToken.atExpirationSec)
                 , setCookieSecure = True
                 , setCookieSameSite = Just sameSiteStrict
                 }

@@ -76,6 +76,4 @@ liquibase update
 - Add `basePathSegments` config option
 - Add default config
 - Add log file rotation
-- Auth api
-    - `POST /auth/refresh`
 - Bus api

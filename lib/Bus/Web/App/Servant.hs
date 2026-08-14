@@ -33,8 +33,6 @@ import Bus.Web.App.Type (
     Security (secJwtKeyFriendlyName),
     Server (svrPort),
  )
-import Bus.Web.Auth.Api (login, logout)
-import Bus.Web.User.Api (getUser, registerUser)
 import Control.Exception (
     Exception (fromException),
     ExceptionWithContext (ExceptionWithContext),
@@ -66,6 +64,8 @@ import Servant.Server.Internal.Delayed (addAuthCheck)
 import Servant.Server.Internal.DelayedIO (DelayedIO, delayedFailFatal)
 import Web.Cookie (SetCookie, parseCookies)
 
+import Bus.Web.Auth.Api qualified as AuthApi
+import Bus.Web.User.Api qualified as UserApi
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Network.HTTP.Types qualified as Http
@@ -76,6 +76,7 @@ type AuthApi =
     "auth"
         :> ( "login" :> ReqBody '[JSON] Object :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
                 :<|> "logout" :> WithAuth '[Access, Refresh] :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+                :<|> "refresh" :> WithAuth '[Refresh] :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
            )
 
 type UserApi =
@@ -144,10 +145,10 @@ server :: ServerT Api AppM
 server = authApi :<|> userApi
 
 authApi :: ServerT AuthApi AppM
-authApi = login :<|> logout
+authApi = AuthApi.login :<|> AuthApi.logout :<|> AuthApi.refresh
 
 userApi :: ServerT UserApi AppM
-userApi = registerUser :<|> getUser
+userApi = UserApi.registerUser :<|> UserApi.getUser
 
 authenticate :: (HasCallStack) => TokenType -> Env -> DelayedIO Token
 authenticate tokenType env = do
