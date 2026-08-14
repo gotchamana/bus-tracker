@@ -35,6 +35,7 @@ instance ToJSON ValidationError where
     toJSON = genericToJSON (fieldPrefixRemovalOptions "val")
     toEncoding = genericToEncoding (fieldPrefixRemovalOptions "val")
 
+-- | Convert 'ValidationError' to 'ApiException'
 requestValidationException :: Maybe Text -> NonEmpty ValidationError -> ApiException
 requestValidationException description errors =
     ApiException
