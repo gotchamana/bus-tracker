@@ -11,7 +11,7 @@ module Bus.Web.Auth.Service (
     signAuthTokenByRefreshToken,
 ) where
 
-import Bus.Database.Class (MonadDatabase)
+import Bus.Database.Class (MonadDatabase, withTransaction)
 import Bus.Database.Entity (PrimaryKey (UserId), RefreshTokenT (..))
 import Bus.Exception (IllegalValueException (IllegalValueException), JwtException (JwtException), NoSuchValueException (NoSuchValueException))
 import Bus.Security.Jwt (Token (Token, tokClaimsSet), TokenType (Access, Refresh), signToken)
@@ -192,8 +192,9 @@ signAuthTokenByRefreshToken keyPair refreshToken = do
 
     if exists
         then do
-            invalidateRefreshToken refreshToken
-            signAuthToken keyPair account
+            withTransaction $ \_ -> do
+                invalidateRefreshToken refreshToken
+                signAuthToken keyPair account
         else
             let revokedError =
                     ValidationError

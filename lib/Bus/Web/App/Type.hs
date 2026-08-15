@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Bus.Web.App.Type (
@@ -10,7 +11,7 @@ module Bus.Web.App.Type (
     CookieNames (..),
 ) where
 
-import Bus.Database.Class (MonadDatabase (..))
+import Bus.Database.Class (MonadDatabase (..), Propagation (..), TransactionMode (tmPropagation), toPgTransactionMode)
 import Bus.Exception (rethrowIO)
 import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
 import Bus.Security.KeyStore (KeyStore)
@@ -29,7 +30,7 @@ import Data.Text (Text, unpack)
 import Data.Typeable (Proxy (Proxy), typeRep)
 import Database.Beam.Postgres (runBeamPostgresDebug)
 import Database.PostgreSQL.Simple (Connection, rollback)
-import Database.PostgreSQL.Simple.Transaction (TransactionMode, beginMode, commit)
+import Database.PostgreSQL.Simple.Transaction (beginMode, commit)
 import GHC.Generics (Generic)
 import Rerefined.Predicate.Logical (And)
 import Rerefined.Refine (Refined, prettyRefineFailure, refine)
@@ -50,31 +51,43 @@ newtype AppM a = AppM (ReaderT Env (LoggingT IO) a)
         )
 
 instance MonadDatabase AppM where
-    withConnection action = do
-        env <- ask
-        let action' = flip runApp env . action
-
-        result <- liftIO (withResource (envDbPool env) (try . action'))
-
-        case result of
-            Left (ExceptionWithContext ctx (e :: SomeException)) -> liftIO . rethrowIO . ExceptionWithContext ctx . toException $ e
-            Right a -> pure a
-
     withTransactionMode :: forall b. TransactionMode -> (Connection -> AppM b) -> AppM b
     withTransactionMode mode action = do
         env <- ask
-        withConnection $ \conn -> liftIO (mask (io conn env))
+
+        case tmPropagation mode of
+            Required ->
+                maybe
+                    (runWithNewConnection env)
+                    (runWithExistingConnection env)
+                    env.envDbCurrentConnection
+            RequiredNew -> runWithNewConnection env
       where
+        runWithExistingConnection env txConn = do
+            let txConn' = txConn{tcInTransaction = True}
+                env' = env{envDbCurrentConnection = Just txConn'}
+                action' =
+                    if txConn.tcInTransaction
+                        then runApp (action txConn.tcConnection) env
+                        else mask (io txConn.tcConnection env')
+
+            liftIO action'
+        runWithNewConnection env = withConnection $ \conn ->
+            let txConn = TxConnection{tcConnection = conn, tcInTransaction = True}
+                env' = env{envDbCurrentConnection = Just txConn}
+             in liftIO (mask (io conn env'))
         io :: Connection -> Env -> (forall a. IO a -> IO a) -> IO b
         io conn env restore = do
             let action' = flip runApp env . action
 
-            beginMode mode conn
+            beginMode (toPgTransactionMode mode) conn
 
             result <- try (restore (action' conn))
 
             case result of
-                Left (ExceptionWithContext ctx (e :: SomeException)) -> rollback conn >> rethrowIO (ExceptionWithContext ctx (toException e))
+                Left (ExceptionWithContext ctx (e :: SomeException)) ->
+                    rollback conn
+                        >> rethrowIO (ExceptionWithContext ctx (toException e))
                 Right a -> a <$ commit conn
 
     runBeam conn pg = do
@@ -83,12 +96,18 @@ instance MonadDatabase AppM where
       where
         logging chan = runTChanLoggingT chan . logDebug . Text.pack
 
+data TxConnection = TxConnection
+    { tcConnection :: Connection
+    , tcInTransaction :: Bool
+    }
+
 data Env = Env
     { envConfig :: Config
     , envLoggingChan :: TChan LogEvent
     , envKeyStore :: KeyStore
     , envKeyStorePassword :: ByteString
     , envDbPool :: Pool Connection
+    , envDbCurrentConnection :: Maybe TxConnection
     , envCookieNames :: CookieNames
     }
 
@@ -210,3 +229,14 @@ data CookieNames = CookieNames
 
 runApp :: AppM a -> Env -> IO a
 runApp (AppM readerT) env@Env{envLoggingChan} = runTChanLoggingT envLoggingChan (runReaderT readerT env)
+
+withConnection :: (Connection -> AppM a) -> AppM a
+withConnection action = do
+    env <- ask
+    let action' = flip runApp env . action
+
+    result <- liftIO (withResource (envDbPool env) (try . action'))
+
+    case result of
+        Left (ExceptionWithContext ctx (e :: SomeException)) -> liftIO . rethrowIO . ExceptionWithContext ctx . toException $ e
+        Right a -> pure a

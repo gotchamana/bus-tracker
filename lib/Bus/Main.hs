@@ -63,6 +63,7 @@ defaultMain = do
                         , envKeyStore = keyStore
                         , envKeyStorePassword = keyStorePassword
                         , envDbPool = pool
+                        , envDbCurrentConnection = Nothing
                         , envCookieNames =
                             CookieNames
                                 { cknAccessToken = "accessToken"

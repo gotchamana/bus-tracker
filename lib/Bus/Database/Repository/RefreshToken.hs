@@ -1,7 +1,12 @@
 module Bus.Database.Repository.RefreshToken (save, updateRevoked, existsByIdAndRevoked) where
 
-import Bus.Database.Class (MonadDatabase (runBeam, withTransactionMode))
-import Bus.Database.Entity (BusTrackerDb (btRefreshToken), RefreshToken, RefreshTokenT (rtkId, rtkRevoked, rtkUpdateTime), busTrackerDb)
+import Bus.Database.Class (MonadDatabase (runBeam), withTransaction)
+import Bus.Database.Entity (
+    BusTrackerDb (btRefreshToken),
+    RefreshToken,
+    RefreshTokenT (rtkId, rtkRevoked, rtkUpdateTime),
+    busTrackerDb,
+ )
 import Data.Int (Int32)
 import Data.Maybe (isJust)
 import Data.Time (LocalTime)
@@ -31,14 +36,13 @@ import Database.Beam (
     (==.),
  )
 import Database.Beam.Backend (BeamSqlBackend)
-import Database.PostgreSQL.Simple.Transaction (defaultTransactionMode)
 
 save :: (MonadDatabase m) => RefreshToken -> m ()
-save token = withTransactionMode defaultTransactionMode $ \conn -> do
+save token = withTransaction $ \conn -> do
     runBeam conn $ runInsert (insert (btRefreshToken busTrackerDb) (insertValues [token]))
 
 updateRevoked :: (MonadDatabase m) => UUID -> Bool -> LocalTime -> m ()
-updateRevoked tokenId revoked updateTime = withTransactionMode defaultTransactionMode $ \conn -> do
+updateRevoked tokenId revoked updateTime = withTransaction $ \conn -> do
     runBeam conn
         . runUpdate
         $ update
@@ -47,7 +51,7 @@ updateRevoked tokenId revoked updateTime = withTransactionMode defaultTransactio
             (\r -> rtkId r ==. val_ tokenId &&. isNotBool_ revoked (sqlBool_ (rtkRevoked r)))
 
 existsByIdAndRevoked :: (MonadDatabase m) => UUID -> Bool -> m Bool
-existsByIdAndRevoked tokenId revoked = withTransactionMode defaultTransactionMode $ \conn ->
+existsByIdAndRevoked tokenId revoked = withTransaction $ \conn ->
     runBeam conn
         . fmap isJust
         . runSelectReturningOne
