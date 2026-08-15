@@ -2,8 +2,6 @@
 
 module Bus.Web.User.Api (registerUser, getUser) where
 
-import Bus.Database.Entity (BusTrackerDb (btUser), busTrackerDb)
-import Bus.Database.MonadDatabase (MonadDatabase (runBeam), withTransaction)
 import Bus.Logger (logDebug')
 import Bus.Security.Jwt (Token)
 import Bus.Web.App.Type (AppM)
@@ -11,7 +9,6 @@ import Data.Aeson (Object)
 import Data.HashMap.Strict (HashMap)
 import Data.Text (Text)
 import Data.UUID (UUID)
-import Database.Beam (MonadIO (liftIO), all_, runSelectReturningList, select)
 
 import Bus.Web.User.Service qualified as UserSvc
 import Data.Aeson.KeyMap qualified as KeyMap
@@ -27,10 +24,4 @@ registerUser user = do
 
 getUser :: Token -> AppM Int
 getUser _ = do
-    xs <- withTransaction $ \conn ->
-        runBeam conn $ do
-            runSelectReturningList (select (all_ (btUser busTrackerDb)))
-
-    liftIO $ print xs
-
     pure 1
