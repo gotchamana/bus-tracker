@@ -6,7 +6,7 @@ import Bus.Database.Entity (
     UserT (usrAccount, usrId, usrPassword),
     busTrackerDb,
  )
-import Bus.Database.MonadDatabase (MonadDatabase (runBeam), withTransaction)
+import Bus.Database.MonadDatabase (MonadDatabase (runBeam), withReadOnlyTransaction, withTransaction)
 import Data.ByteString (ByteString)
 import Data.Int (Int32)
 import Data.Text (Text)
@@ -27,7 +27,7 @@ import Database.Beam (
  )
 
 existsByAccount :: (MonadDatabase m, MonadFail m) => Text -> m Bool
-existsByAccount account = withTransaction $ \conn -> do
+existsByAccount account = withReadOnlyTransaction $ \conn -> do
     Just count <- runBeam conn
         . runSelectReturningOne
         . select
@@ -40,14 +40,14 @@ existsByAccount account = withTransaction $ \conn -> do
     pure (count == 1)
 
 findIdByAccount :: (MonadDatabase m) => Text -> m (Maybe UUID)
-findIdByAccount account = withTransaction $ \conn -> do
+findIdByAccount account = withReadOnlyTransaction $ \conn -> do
     runBeam conn . runSelectReturningOne . select $ do
         user <- all_ (btUser busTrackerDb)
         guard_ (usrAccount user ==. val_ account)
         pure (usrId user)
 
 findPasswordByAccount :: (MonadDatabase m) => Text -> m (Maybe ByteString)
-findPasswordByAccount account = withTransaction $ \conn -> do
+findPasswordByAccount account = withReadOnlyTransaction $ \conn -> do
     runBeam conn . runSelectReturningOne . select $ do
         user <- all_ (btUser busTrackerDb)
         guard_ (usrAccount user ==. val_ account)
