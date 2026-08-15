@@ -1,12 +1,12 @@
 module Bus.Database.Repository.RefreshToken (save, updateRevoked, existsByIdAndRevoked) where
 
-import Bus.Database.Class (MonadDatabase (runBeam), withTransaction)
 import Bus.Database.Entity (
     BusTrackerDb (btRefreshToken),
     RefreshToken,
     RefreshTokenT (rtkId, rtkRevoked, rtkUpdateTime),
     busTrackerDb,
  )
+import Bus.Database.MonadDatabase (MonadDatabase (runBeam), withTransaction)
 import Data.Int (Int32)
 import Data.Maybe (isJust)
 import Data.Time (LocalTime)

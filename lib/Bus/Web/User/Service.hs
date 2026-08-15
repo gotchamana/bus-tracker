@@ -3,8 +3,8 @@
 
 module Bus.Web.User.Service (NewUser (..), save, validateNewUser) where
 
-import Bus.Database.Class (MonadDatabase)
 import Bus.Database.Entity (UserT (..))
+import Bus.Database.MonadDatabase (MonadDatabase)
 import Bus.Util.MessageCode (errorValidationDuplicateUserAccount)
 import Bus.Validation.Aeson (parseObjectM)
 import Bus.Validation.Error (ValidationError (..), requestValidationException)

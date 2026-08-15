@@ -11,7 +11,7 @@ module Bus.Web.App.Type (
     CookieNames (..),
 ) where
 
-import Bus.Database.Class (MonadDatabase (..), Propagation (..), TransactionMode (tmPropagation), toPgTransactionMode)
+import Bus.Database.MonadDatabase (MonadDatabase (..), Propagation (..), TransactionMode (tmPropagation), toPgTransactionMode)
 import Bus.Exception (rethrowIO)
 import Bus.Logger (LogEvent, LoggingT, MonadLogger, logDebug, runTChanLoggingT)
 import Bus.Security.KeyStore (KeyStore)

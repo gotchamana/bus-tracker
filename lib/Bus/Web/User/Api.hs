@@ -2,8 +2,8 @@
 
 module Bus.Web.User.Api (registerUser, getUser) where
 
-import Bus.Database.Class (MonadDatabase (runBeam), withTransaction)
 import Bus.Database.Entity (BusTrackerDb (btUser), busTrackerDb)
+import Bus.Database.MonadDatabase (MonadDatabase (runBeam), withTransaction)
 import Bus.Logger (logDebug')
 import Bus.Security.Jwt (Token)
 import Bus.Web.App.Type (AppM)

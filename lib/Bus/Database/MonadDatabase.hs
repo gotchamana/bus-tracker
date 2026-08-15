@@ -1,4 +1,4 @@
-module Bus.Database.Class (
+module Bus.Database.MonadDatabase (
     MonadDatabase (..),
     TransactionMode (..),
     Propagation (..),
