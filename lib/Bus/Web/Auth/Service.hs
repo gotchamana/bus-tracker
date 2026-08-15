@@ -190,20 +190,18 @@ signAuthTokenByRefreshToken keyPair refreshToken = do
         Nothing -> throwM (NoSuchValueException "No sub found in token")
     exists <- RefreshTokenRepo.existsByIdAndRevoked tokenId False
 
+    let revokedError =
+            ValidationError
+                { valField = Nothing
+                , valMessage = "Refresh token was revoked"
+                , valMessageCode = errorValidationRevokedRefreshToken
+                , valMessageArgs = HashMap.empty
+                }
     if exists
-        then do
-            withTransaction $ \_ -> do
-                invalidateRefreshToken refreshToken
-                signAuthToken keyPair account
-        else
-            let revokedError =
-                    ValidationError
-                        { valField = Nothing
-                        , valMessage = "Refresh token was revoked"
-                        , valMessageCode = errorValidationRevokedRefreshToken
-                        , valMessageArgs = HashMap.empty
-                        }
-             in throwM (requestValidationException Nothing (NonEmpty.singleton revokedError))
+        then withTransaction $ \_ -> do
+            invalidateRefreshToken refreshToken
+            signAuthToken keyPair account
+        else throwM (requestValidationException Nothing (NonEmpty.singleton revokedError))
 
 getLocalTime :: IO LocalTime
 getLocalTime = zonedTimeToLocalTime <$> getZonedTime
