@@ -76,4 +76,15 @@ liquibase update
 - Add `basePathSegments` config option
 - Add default config
 - Add log file rotation
+- Add dump sql flag in config option
+- Add refresh token cookie path
+- Add correct redirect uri in problem details
+- Add pagination combinator
 - Bus api
+    - `GET /buses?page=&size=`
+    - `POST /buses`
+    - `PATCH /buses/{id}`: update bus route
+    - `POST /buses/{id}/ratings`
+- Rating api
+- User api
+    - `GET /users?page=&size=`
