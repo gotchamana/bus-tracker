@@ -9,6 +9,7 @@ module Bus.Security.Jwt (
 ) where
 
 import Bus.Exception (JwtException (JwtException))
+import Bus.Util.Servant (KnownAuthType (authType))
 import Control.Applicative (Alternative (empty))
 import Control.Lens ((&), (.~), (?~))
 import Control.Monad.Catch (MonadThrow (throwM))
@@ -73,6 +74,12 @@ instance ToJSON Token where
         ins _ _ a = a
 
 data TokenType = Access | Refresh deriving (Eq, Show)
+
+instance KnownAuthType Access where
+    authType _ = Access
+
+instance KnownAuthType Refresh where
+    authType _ = Refresh
 
 instance FromJSON TokenType where
     parseJSON = withText name $ \case

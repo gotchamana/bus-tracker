@@ -25,6 +25,7 @@ import Bus.Security.Jwt (
  )
 import Bus.Security.KeyStore (getKeyByFriendlyName)
 import Bus.Util.Aeson (fieldPrefixRemovalOptions)
+import Bus.Util.Servant (AuthContext (..), WithAuth)
 import Bus.Web.App.Type (
     AppM (AppM),
     Config (cfgSecurity, cfgServer),
@@ -55,14 +56,11 @@ import Data.UUID (UUID)
 import GHC.Clock (getMonotonicTime)
 import GHC.Generics (Generic)
 import GHC.Stack (HasCallStack)
-import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType, hCookie, status401)
+import Network.HTTP.Types (Status (statusCode, statusMessage), hContentType, status401)
 import Network.URI (URIAuth (uriPort, uriRegName), nullURIAuth)
-import Network.Wai (Request (requestHeaders))
 import Rerefined (unrefine)
 import Servant
-import Servant.Server.Internal.Delayed (addAuthCheck)
-import Servant.Server.Internal.DelayedIO (DelayedIO, delayedFailFatal)
-import Web.Cookie (SetCookie, parseCookies)
+import Web.Cookie (Cookies, SetCookie)
 
 import Bus.Web.Auth.Api qualified as AuthApi
 import Bus.Web.User.Api qualified as UserApi
@@ -75,44 +73,19 @@ type Api = AuthApi :<|> UserApi
 type AuthApi =
     "auth"
         :> ( "login" :> ReqBody '[JSON] Object :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
-                :<|> "logout" :> WithAuth '[Access, Refresh] :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
-                :<|> "refresh" :> WithAuth '[Refresh] :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+                :<|> "logout" :> WithToken '[Access, Refresh] :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
+                :<|> "refresh" :> WithToken '[Refresh] :> Verb 'POST 203 '[JSON] (Headers '[HSetCookie, HSetCookie] NoContent)
            )
 
 type UserApi =
     "users"
         :> ( ReqBody '[JSON] Object :> PostCreated '[JSON] (HashMap Text UUID)
-                :<|> WithAuth '[Access] :> Get '[JSON] Int
+                :<|> WithToken '[Access] :> Get '[JSON] Int
            )
 
 type HSetCookie = Header "SetCookie" SetCookie
 
-data WithAuth (a :: [TokenType])
-
-instance (HasServer api ctx) => HasServer (WithAuth '[] :> api) ctx where
-    type ServerT (WithAuth '[] :> api) m = ServerT api m
-
-    hoistServerWithContext _ = hoistServerWithContext @api Proxy
-
-    route _ = route @api Proxy
-
-instance (HasServer (WithAuth xs :> api) ctx, HasContextEntry ctx Env) => HasServer (WithAuth (Access ': xs) :> api) ctx where
-    type ServerT (WithAuth (Access ': xs) :> api) m = Token -> ServerT (WithAuth xs :> api) m
-
-    hoistServerWithContext _ ctx nt s = hoistServerWithContext @(WithAuth xs :> api) Proxy ctx nt . s
-
-    route _ ctx subserver = route @(WithAuth xs :> api) Proxy ctx (addAuthCheck subserver check)
-      where
-        check = authenticate Access (getContextEntry ctx)
-
-instance (HasServer (WithAuth xs :> api) ctx, HasContextEntry ctx Env) => HasServer (WithAuth (Refresh ': xs) :> api) ctx where
-    type ServerT (WithAuth (Refresh ': xs) :> api) m = Token -> ServerT (WithAuth xs :> api) m
-
-    hoistServerWithContext _ ctx f s = hoistServerWithContext @(WithAuth xs :> api) Proxy ctx f . s
-
-    route _ ctx subserver = route @(WithAuth xs :> api) Proxy ctx (addAuthCheck subserver check)
-      where
-        check = authenticate Refresh (getContextEntry ctx)
+type WithToken a = WithAuth a Token
 
 data ProblemDetails = ProblemDetails
     { pdType :: URI
@@ -135,11 +108,12 @@ instance MonadTime MockMonadTime where
     monotonicTime = asks snd
 
 waiApp :: Env -> Application
-waiApp env = serveWithContext apiProxy (env :. errorFormatters env :. EmptyContext) server'
+waiApp env = serveWithContext apiProxy (authContext :. errorFormatters env :. EmptyContext) server'
   where
     apiProxy = Proxy @Api
-    contextProxy = Proxy @'[Env]
+    contextProxy = Proxy @'[AuthContext Token TokenType]
     server' = hoistServerWithContext apiProxy contextProxy (toHandler env) server
+    authContext = AuthContext @Token @TokenType (authenticate env)
 
 server :: ServerT Api AppM
 server = authApi :<|> userApi
@@ -150,17 +124,11 @@ authApi = AuthApi.login :<|> AuthApi.logout :<|> AuthApi.refresh
 userApi :: ServerT UserApi AppM
 userApi = UserApi.registerUser :<|> UserApi.getUser
 
-authenticate :: (HasCallStack) => TokenType -> Env -> DelayedIO Token
-authenticate tokenType env = do
-    request <- ask
-    result <- liftIO . runHandler . toHandler env $ authenticateApp tokenType request
+authenticate :: (HasCallStack) => Env -> TokenType -> Maybe Cookies -> IO (Either ServerError Token)
+authenticate env tokenType = runHandler . toHandler env . authenticateApp tokenType
 
-    case result of
-        Left err -> delayedFailFatal err
-        Right token -> pure token
-
-authenticateApp :: (HasCallStack) => TokenType -> Request -> AppM Token
-authenticateApp tokenType request = do
+authenticateApp :: (HasCallStack) => TokenType -> Maybe Cookies -> AppM Token
+authenticateApp tokenType maybeCookies = do
     env <- ask
 
     rawToken <- case extractToken env.envCookieNames of
@@ -195,7 +163,7 @@ authenticateApp tokenType request = do
                      in throwM defaultException{apiErrorDescription = Just description}
   where
     extractToken cookieNames = do
-        cookies <- parseCookies <$> lookup hCookie (requestHeaders request)
+        cookies <- maybeCookies
 
         let access = lookup cookieNames.cknAccessToken cookies
             refresh = lookup cookieNames.cknRefreshToken cookies
